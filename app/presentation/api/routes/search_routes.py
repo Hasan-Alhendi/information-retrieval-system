@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
+from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
 from app.infrastructure.retrieval.tfidf_retriever import TFIDFRetriever
 from app.presentation.api.schemas import SearchRequest, SearchResponse, SearchResultResponse
 
@@ -16,6 +17,11 @@ def _create_retriever(request: SearchRequest):
         return BM25Retriever(
             k1=request.bm25_k1,
             b=request.bm25_b,
+            max_docs=request.max_docs,
+        )
+    if request.model_name == "embedding":
+        return EmbeddingRetriever(
+            embedding_model_name=request.embedding_model,
             max_docs=request.max_docs,
         )
     raise HTTPException(status_code=400, detail=f"Unsupported model: {request.model_name}")
