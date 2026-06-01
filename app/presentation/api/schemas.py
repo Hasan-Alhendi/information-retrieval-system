@@ -13,6 +13,7 @@ class SearchRequest(BaseModel):
     max_docs: int | None = Field(default=None, ge=1)
     bm25_k1: float = Field(default=1.5, gt=0)
     bm25_b: float = Field(default=0.75, ge=0, le=1)
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 class SearchResultResponse(BaseModel):
