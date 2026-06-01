@@ -25,17 +25,23 @@ class TFIDFRetriever:
         self,
         dataset_loader: BeirDatasetLoader | None = None,
         preprocessor: SpacyPreprocessor | None = None,
+        max_docs: int | None = None,
     ) -> None:
         self._dataset_loader = dataset_loader or BeirDatasetLoader()
         self._preprocessor = preprocessor or SpacyPreprocessor()
+        self._max_docs = max_docs
 
-    def build(self, dataset_name: str, force: bool = False) -> None:
+    def build(self, dataset_name: str, force: bool = False, max_docs: int | None = None) -> None:
         """Build and persist the TF-IDF index for a dataset."""
-        paths = self._paths(dataset_name)
+        active_max_docs = max_docs if max_docs is not None else self._max_docs
+        paths = self._paths(dataset_name, active_max_docs)
         if not force and self._is_ready(paths):
             return
 
-        doc_ids, documents, _, _ = self._dataset_loader.prepare_dataset(dataset_name)
+        doc_ids, documents, _, _ = self._dataset_loader.prepare_dataset(
+            dataset_name,
+            max_docs=active_max_docs,
+        )
         normalized_documents = self._preprocessor.preprocess_many(documents)
 
         vectorizer = TfidfVectorizer(lowercase=False)
@@ -75,21 +81,23 @@ class TFIDFRetriever:
 
     def ensure_ready(self, dataset_name: str) -> None:
         """Build the TF-IDF index if it does not exist."""
-        paths = self._paths(dataset_name)
+        paths = self._paths(dataset_name, self._max_docs)
         if not self._is_ready(paths):
             self.build(dataset_name)
 
     def load(self, dataset_name: str):
         """Load persisted TF-IDF artifacts."""
-        paths = self._paths(dataset_name)
+        paths = self._paths(dataset_name, self._max_docs)
         vectorizer = load_object(paths["vectorizer"])
         matrix = sparse.load_npz(paths["matrix"])
         doc_ids = load_object(paths["doc_ids"])
         documents = load_object(paths["documents"])
         return vectorizer, matrix, doc_ids, documents
 
-    def _paths(self, dataset_name: str) -> dict[str, Path]:
+    def _paths(self, dataset_name: str, max_docs: int | None = None) -> dict[str, Path]:
         base_dir = get_index_dir(dataset_name, self.model_name)
+        if max_docs is not None:
+            base_dir = base_dir / f"dev_{max_docs}"
         prefix = PREPROCESSING_BACKEND_TAG
         return {
             "base_dir": base_dir,
