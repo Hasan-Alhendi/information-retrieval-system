@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+streamlit
+pydantic
+numpy
+pandas
+scikit-learn
+scipy
+spacy
+sentence-transformers
+rank-bm25
+faiss-cpu
+joblib
+beir
+pytest
+ruff
+mypy
