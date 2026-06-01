@@ -2,24 +2,29 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
 from app.infrastructure.retrieval.tfidf_retriever import TFIDFRetriever
 from app.presentation.api.schemas import SearchRequest, SearchResponse, SearchResultResponse
 
 router = APIRouter(prefix="/search", tags=["search"])
 
-RETRIEVERS = {
-    "tfidf": TFIDFRetriever,
-}
+
+def _create_retriever(request: SearchRequest):
+    if request.model_name == "tfidf":
+        return TFIDFRetriever(max_docs=request.max_docs)
+    if request.model_name == "bm25":
+        return BM25Retriever(
+            k1=request.bm25_k1,
+            b=request.bm25_b,
+            max_docs=request.max_docs,
+        )
+    raise HTTPException(status_code=400, detail=f"Unsupported model: {request.model_name}")
 
 
 @router.post("", response_model=SearchResponse)
 def search_documents(request: SearchRequest) -> SearchResponse:
     """Search documents using the selected retrieval model."""
-    retriever_cls = RETRIEVERS.get(request.model_name)
-    if retriever_cls is None:
-        raise HTTPException(status_code=400, detail=f"Unsupported model: {request.model_name}")
-
-    retriever = retriever_cls()
+    retriever = _create_retriever(request)
     results = retriever.search(
         query=request.query,
         dataset_name=request.dataset_name,
