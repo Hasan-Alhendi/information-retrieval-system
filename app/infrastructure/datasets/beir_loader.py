@@ -31,12 +31,26 @@ class BeirDatasetLoader:
         self,
         dataset_name: str,
         max_docs: int | None = None,
+        use_config_limit: bool = True,
     ) -> tuple[list[str], list[str], Queries, Qrels]:
-        """Prepare documents, queries, and filtered qrels for retrieval and evaluation."""
+        """Prepare documents, queries, and filtered qrels for retrieval and evaluation.
+
+        Args:
+            dataset_name: Registered dataset name.
+            max_docs: Explicit development or experiment document limit.
+            use_config_limit: When true and max_docs is not set, use the dataset limit
+                configured in the registry. Set this to false to load the full corpus.
+        """
         config = get_dataset_config(dataset_name)
         corpus, queries, qrels = self.load_raw(dataset_name)
 
-        limit = config.document_limit if max_docs is None else max_docs
+        if max_docs is not None:
+            limit = max_docs
+        elif use_config_limit:
+            limit = config.document_limit
+        else:
+            limit = None
+
         doc_ids = list(corpus.keys())
         if limit is not None:
             doc_ids = doc_ids[:limit]
