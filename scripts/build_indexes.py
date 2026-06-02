@@ -10,12 +10,16 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
+from app.infrastructure.retrieval.hybrid_parallel import HybridParallelRetriever
+from app.infrastructure.retrieval.hybrid_serial import HybridSerialRetriever
 from app.infrastructure.retrieval.tfidf_retriever import TFIDFRetriever
 
 
 RETRIEVER_BUILDERS = {
     "bm25": BM25Retriever,
     "embedding": EmbeddingRetriever,
+    "hybrid_parallel": HybridParallelRetriever,
+    "hybrid_serial": HybridSerialRetriever,
     "tfidf": TFIDFRetriever,
 }
 
@@ -54,6 +58,26 @@ def main() -> None:
             max_docs=args.max_docs,
             batch_size=args.batch_size,
         )
+    elif args.model in {"hybrid_serial", "hybrid_parallel"}:
+        embedding = EmbeddingRetriever(
+            embedding_model_name=args.embedding_model,
+            max_docs=args.max_docs,
+            batch_size=args.batch_size,
+        )
+        bm25 = BM25Retriever(k1=args.bm25_k1, b=args.bm25_b, max_docs=args.max_docs)
+        if args.model == "hybrid_serial":
+            retriever = HybridSerialRetriever(
+                bm25_retriever=bm25,
+                embedding_retriever=embedding,
+                max_docs=args.max_docs,
+            )
+        else:
+            retriever = HybridParallelRetriever(
+                tfidf_retriever=TFIDFRetriever(max_docs=args.max_docs),
+                bm25_retriever=bm25,
+                embedding_retriever=embedding,
+                max_docs=args.max_docs,
+            )
     else:
         retriever = RETRIEVER_BUILDERS[args.model](max_docs=args.max_docs)
 
