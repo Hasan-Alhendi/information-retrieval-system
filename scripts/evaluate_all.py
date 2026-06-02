@@ -34,6 +34,11 @@ def parse_args() -> argparse.Namespace:
         default="sentence-transformers/all-MiniLM-L6-v2",
         help="SentenceTransformer model name for embedding-based evaluation.",
     )
+    parser.add_argument(
+        "--use-query-refinement",
+        action="store_true",
+        help="Evaluate after applying query refinement.",
+    )
     return parser.parse_args()
 
 
@@ -47,14 +52,16 @@ def main() -> None:
         bm25_k1=args.bm25_k1,
         bm25_b=args.bm25_b,
         embedding_model=args.embedding_model,
+        use_query_refinement=args.use_query_refinement,
     )
 
     results = []
+    mode = "with_query_refinement" if args.use_query_refinement else "baseline"
     for model_name in args.models:
         result = evaluator.evaluate(dataset_name=args.dataset, model_name=model_name)
         results.append(result)
         print(
-            f"{model_name}: "
+            f"{model_name} ({mode}): "
             f"MAP={result.map_score:.4f}, "
             f"Recall={result.recall:.4f}, "
             f"P@10={result.precision_at_10:.4f}, "
@@ -64,13 +71,14 @@ def main() -> None:
 
     EVALUATION_DIR.mkdir(parents=True, exist_ok=True)
     suffix = f"dev_{args.max_docs}" if args.max_docs else "full"
-    output_path = EVALUATION_DIR / f"{args.dataset}_{suffix}_evaluation.csv"
+    output_path = EVALUATION_DIR / f"{args.dataset}_{suffix}_{mode}_evaluation.csv"
     with output_path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(
             file,
             fieldnames=[
                 "dataset_name",
                 "model_name",
+                "mode",
                 "map_score",
                 "recall",
                 "precision_at_10",
@@ -84,6 +92,7 @@ def main() -> None:
                 {
                     "dataset_name": result.dataset_name,
                     "model_name": result.model_name,
+                    "mode": mode,
                     "map_score": result.map_score,
                     "recall": result.recall,
                     "precision_at_10": result.precision_at_10,
