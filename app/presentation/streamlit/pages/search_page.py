@@ -2,6 +2,7 @@
 
 import streamlit as st
 
+from app.application.services.query_refinement_service import QueryRefinementService
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
 from app.infrastructure.retrieval.hybrid_parallel import HybridParallelRetriever
@@ -15,7 +16,7 @@ def render_search_page(settings: dict[str, object]) -> None:
     st.header("Document Search")
     st.caption("Search the selected dataset using one retrieval model.")
 
-    query = st.text_input("Query", placeholder="e.g. information retrieval ranking")
+    query = st.text_input("Query", placeholder="e.g. informtion retrival ranking")
     search_clicked = st.button("Search", type="primary", use_container_width=True)
 
     if not search_clicked:
@@ -25,10 +26,22 @@ def render_search_page(settings: dict[str, object]) -> None:
         st.warning("Please enter a query.")
         return
 
+    active_query = query
+    if bool(settings.get("use_query_refinement", False)):
+        refinement = QueryRefinementService().refine(query)
+        active_query = refinement.refined_query
+        with st.expander("Query Refinement", expanded=True):
+            st.write({
+                "original_query": refinement.original_query,
+                "refined_query": refinement.refined_query,
+                "corrections": refinement.corrections,
+                "expansions": refinement.expansions,
+            })
+
     with st.spinner("Searching... Missing indexes will be built automatically."):
         retriever = _create_retriever(settings)
         results = retriever.search(
-            query=query,
+            query=active_query,
             dataset_name=str(settings["dataset_name"]),
             top_k=int(settings["top_k"]),
         )
