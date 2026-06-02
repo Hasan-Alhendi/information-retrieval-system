@@ -14,6 +14,7 @@ class SearchRequest(BaseModel):
     bm25_k1: float = Field(default=1.5, gt=0)
     bm25_b: float = Field(default=0.75, ge=0, le=1)
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    use_query_refinement: bool = False
 
 
 class SearchResultResponse(BaseModel):
@@ -26,7 +27,17 @@ class SearchResultResponse(BaseModel):
     text: str | None = None
 
 
+class QueryRefinementResponse(BaseModel):
+    """Query refinement details."""
+
+    original_query: str
+    refined_query: str
+    corrections: dict[str, str]
+    expansions: dict[str, list[str]]
+
+
 class SearchResponse(BaseModel):
     """Search response payload."""
 
     results: list[SearchResultResponse]
+    query_refinement: QueryRefinementResponse | None = None
