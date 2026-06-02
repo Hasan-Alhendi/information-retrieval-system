@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from app.application.services.query_refinement_service import QueryRefinementService
 from app.config import DEFAULT_TOP_K
 from app.domain.models.evaluation_result import EvaluationResult
 from app.infrastructure.datasets.beir_loader import BeirDatasetLoader
@@ -33,6 +34,7 @@ class RetrievalEvaluator:
         bm25_k1: float = 1.5,
         bm25_b: float = 0.75,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        use_query_refinement: bool = False,
     ) -> None:
         self._dataset_loader = dataset_loader or BeirDatasetLoader()
         self.max_docs = max_docs
@@ -41,6 +43,8 @@ class RetrievalEvaluator:
         self.bm25_k1 = bm25_k1
         self.bm25_b = bm25_b
         self.embedding_model = embedding_model
+        self.use_query_refinement = use_query_refinement
+        self._query_refinement_service = QueryRefinementService()
 
     def evaluate(self, dataset_name: str, model_name: str) -> EvaluationResult:
         """Evaluate a retrieval model on a dataset."""
@@ -74,7 +78,8 @@ class RetrievalEvaluator:
         for query_id, query_text in query_items:
             relevance_scores = {doc_id: float(score) for doc_id, score in qrels[query_id].items()}
             relevant_docs = {doc_id for doc_id, score in relevance_scores.items() if score > 0}
-            results = retriever.search(query=query_text, dataset_name=dataset_name, top_k=self.top_k)
+            active_query = self._prepare_query(query_text)
+            results = retriever.search(query=active_query, dataset_name=dataset_name, top_k=self.top_k)
             retrieved_doc_ids = [result.doc_id for result in results]
 
             map_scores.append(average_precision(retrieved_doc_ids, relevant_docs))
@@ -92,6 +97,11 @@ class RetrievalEvaluator:
             ndcg=_mean(ndcg_scores),
             evaluated_queries=evaluated_queries,
         )
+
+    def _prepare_query(self, query_text: str) -> str:
+        if not self.use_query_refinement:
+            return query_text
+        return self._query_refinement_service.refine(query_text).refined_query
 
     def _create_retriever(self, model_name: str):
         if model_name == "tfidf":
