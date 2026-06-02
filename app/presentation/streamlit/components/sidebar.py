@@ -36,6 +36,14 @@ def render_sidebar() -> dict[str, object]:
     )
 
     st.sidebar.divider()
+    st.sidebar.subheader("Query Processing")
+    use_query_refinement = st.sidebar.checkbox(
+        "Enable Query Refinement",
+        value=False,
+        help="Apply spelling correction and domain-specific query expansion.",
+    )
+
+    st.sidebar.divider()
     st.sidebar.subheader("BM25 Parameters")
     bm25_k1 = st.sidebar.slider("k1", min_value=0.1, max_value=3.0, value=1.5, step=0.1)
     bm25_b = st.sidebar.slider("b", min_value=0.0, max_value=1.0, value=0.75, step=0.05)
@@ -52,6 +60,7 @@ def render_sidebar() -> dict[str, object]:
         "model_name": MODEL_OPTIONS[model_label],
         "top_k": top_k,
         "max_docs": int(max_docs),
+        "use_query_refinement": bool(use_query_refinement),
         "bm25_k1": float(bm25_k1),
         "bm25_b": float(bm25_b),
         "embedding_model": embedding_model,
