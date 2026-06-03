@@ -33,14 +33,7 @@ class BeirDatasetLoader:
         max_docs: int | None = None,
         use_config_limit: bool = True,
     ) -> tuple[list[str], list[str], Queries, Qrels]:
-        """Prepare documents, queries, and filtered qrels for retrieval and evaluation.
-
-        Args:
-            dataset_name: Registered dataset name.
-            max_docs: Explicit development or experiment document limit.
-            use_config_limit: When true and max_docs is not set, use the dataset limit
-                configured in the registry. Set this to false to load the full corpus.
-        """
+        """Prepare documents, queries, and filtered qrels for retrieval and evaluation."""
         config = get_dataset_config(dataset_name)
         corpus, queries, qrels = self.load_raw(dataset_name)
 
@@ -51,9 +44,10 @@ class BeirDatasetLoader:
         else:
             limit = None
 
-        doc_ids = list(corpus.keys())
-        if limit is not None:
-            doc_ids = doc_ids[:limit]
+        if limit is None:
+            doc_ids = list(corpus.keys())
+        else:
+            doc_ids = _select_qrels_aware_documents(corpus=corpus, qrels=qrels, limit=limit)
 
         documents: list[str] = []
         for doc_id in doc_ids:
@@ -83,6 +77,36 @@ class BeirDatasetLoader:
             "queries_count": len(queries),
             "qrels_count": len(qrels),
         }
+
+
+def _select_qrels_aware_documents(corpus: Corpus, qrels: Qrels, limit: int) -> list[str]:
+    """Select a development subset that contains relevant qrels documents.
+
+    Taking the first N corpus documents can leave almost no relevant documents in the
+    subset. This qrels-aware selection keeps development evaluation meaningful while
+    still respecting the requested document limit.
+    """
+    selected: list[str] = []
+    selected_set: set[str] = set()
+
+    for relevances in qrels.values():
+        for doc_id, score in relevances.items():
+            if score <= 0 or doc_id in selected_set or doc_id not in corpus:
+                continue
+            selected.append(doc_id)
+            selected_set.add(doc_id)
+            if len(selected) >= limit:
+                return selected
+
+    for doc_id in corpus:
+        if doc_id in selected_set:
+            continue
+        selected.append(doc_id)
+        selected_set.add(doc_id)
+        if len(selected) >= limit:
+            break
+
+    return selected
 
 
 @lru_cache(maxsize=8)
