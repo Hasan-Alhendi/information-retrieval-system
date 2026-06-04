@@ -14,9 +14,9 @@ class DatasetConfig:
 
 
 SUPPORTED_DATASETS: dict[str, DatasetConfig] = {
-    "msmarco": DatasetConfig(
-        name="msmarco",
-        display_name="MS MARCO",
+    "quora": DatasetConfig(
+        name="quora",
+        display_name="Quora",
         source="beir",
         document_limit=250_000,
     ),
@@ -26,7 +26,16 @@ SUPPORTED_DATASETS: dict[str, DatasetConfig] = {
         source="beir",
         document_limit=250_000,
     ),
+    "msmarco": DatasetConfig(
+        name="msmarco",
+        display_name="MS MARCO",
+        source="beir",
+        document_limit=250_000,
+    ),
 }
+
+
+PRIMARY_REPORT_DATASETS = ("quora", "nq")
 
 
 def get_dataset_config(dataset_name: str) -> DatasetConfig:
