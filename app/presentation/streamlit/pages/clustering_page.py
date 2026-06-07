@@ -10,7 +10,7 @@ def render_clustering_page() -> None:
     st.header("Document Clustering")
     st.caption("Cluster a development subset of the selected dataset using dense embeddings.")
 
-    dataset_name = st.selectbox("Dataset", ["quora", "nq", "msmarco"], key="clustering_dataset")
+    dataset_name = st.selectbox("Dataset", ["quora", "nq"], key="clustering_dataset")
     number_of_clusters = st.slider("Number of clusters", min_value=2, max_value=20, value=5)
     max_docs = st.number_input(
         "Max documents",
