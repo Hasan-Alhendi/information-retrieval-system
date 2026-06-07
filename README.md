@@ -4,6 +4,13 @@ A clean, modular Information Retrieval system built for the IR Project 2026 requ
 
 The project is designed using **Clean Architecture** and SOA-inspired services. It supports multiple retrieval models, evaluation pipelines, and an interactive Streamlit UI.
 
+## Official Datasets
+
+The system officially uses two BEIR datasets:
+
+- Quora (`quora`)
+- Natural Questions (`nq`)
+
 ## Features
 
 - Dataset loading from BEIR-compatible datasets.
@@ -15,6 +22,8 @@ The project is designed using **Clean Architecture** and SOA-inspired services. 
   - Hybrid Serial retrieval
   - Hybrid Parallel retrieval with reciprocal-rank-style fusion
 - FAISS vector store for dense retrieval.
+- Query refinement.
+- Document clustering.
 - Evaluation using MAP, Recall, Precision@10, and nDCG.
 - FastAPI backend.
 - Streamlit user interface.
@@ -96,25 +105,29 @@ http://localhost:8501
 Use a small `--max-docs` value for local demos.
 
 ```bash
-python scripts/build_indexes.py --dataset msmarco --model bm25 --max-docs 1000
-python scripts/build_indexes.py --dataset msmarco --model tfidf --max-docs 1000
-python scripts/build_indexes.py --dataset msmarco --model embedding --max-docs 1000
-python scripts/build_indexes.py --dataset msmarco --model hybrid_serial --max-docs 1000
-python scripts/build_indexes.py --dataset msmarco --model hybrid_parallel --max-docs 1000
+python scripts/build_indexes.py --dataset quora --model bm25 --max-docs 1000
+python scripts/build_indexes.py --dataset quora --model tfidf --max-docs 1000
+python scripts/build_indexes.py --dataset quora --model embedding --max-docs 1000
+python scripts/build_indexes.py --dataset quora --model hybrid_serial --max-docs 1000
+python scripts/build_indexes.py --dataset quora --model hybrid_parallel --max-docs 1000
+
+python scripts/build_indexes.py --dataset nq --model bm25 --max-docs 1000
+python scripts/build_indexes.py --dataset nq --model tfidf --max-docs 1000
 ```
 
 ## Search API Example
 
 ```json
 {
-  "query": "information retrieval ranking",
-  "dataset_name": "msmarco",
+  "query": "how can I learn programming",
+  "dataset_name": "quora",
   "model_name": "bm25",
   "top_k": 10,
   "max_docs": 1000,
   "bm25_k1": 1.5,
   "bm25_b": 0.75,
-  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "use_query_refinement": false
 }
 ```
 
@@ -127,8 +140,9 @@ POST /search
 ## Evaluate Models
 
 ```bash
-python scripts/evaluate_all.py --dataset msmarco --models bm25 tfidf --max-docs 1000 --max-queries 10
-python scripts/evaluate_all.py --dataset msmarco --models hybrid_parallel --max-docs 1000 --max-queries 10
+python scripts/evaluate_all.py --dataset quora --models bm25 tfidf --max-docs 1000 --max-queries 10
+python scripts/evaluate_all.py --dataset quora --models hybrid_parallel --max-docs 1000 --max-queries 10
+python scripts/evaluate_all.py --dataset nq --models bm25 tfidf --max-docs 1000 --max-queries 10
 ```
 
 Evaluation output is saved under:
@@ -158,11 +172,7 @@ Implemented:
 - FAISS vector store
 - Hybrid Serial retriever
 - Hybrid Parallel retriever
-- Evaluation pipeline
-
-Next planned work:
-
 - Query refinement
-- Clustering implementation
-- More tests
-- Final report and diagrams
+- Document clustering
+- Evaluation pipeline
+- Basic tests
