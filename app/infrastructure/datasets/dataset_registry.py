@@ -26,12 +26,6 @@ SUPPORTED_DATASETS: dict[str, DatasetConfig] = {
         source="beir",
         document_limit=250_000,
     ),
-    "msmarco": DatasetConfig(
-        name="msmarco",
-        display_name="MS MARCO",
-        source="beir",
-        document_limit=250_000,
-    ),
 }
 
 
