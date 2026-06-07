@@ -5,7 +5,6 @@ import streamlit as st
 DATASET_OPTIONS = {
     "Quora": "quora",
     "Natural Questions": "nq",
-    "MS MARCO": "msmarco",
 }
 
 MODEL_OPTIONS = {
