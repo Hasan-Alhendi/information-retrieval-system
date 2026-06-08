@@ -10,10 +10,10 @@ if str(PROJECT_ROOT) not in sys.path:
 import streamlit as st
 
 from app.presentation.streamlit.components.sidebar import render_sidebar
-from app.presentation.streamlit.pages.clustering_page import render_clustering_page
-from app.presentation.streamlit.pages.datasets_page import render_datasets_page
-from app.presentation.streamlit.pages.evaluation_page import render_evaluation_page
-from app.presentation.streamlit.pages.search_page import render_search_page
+from app.presentation.streamlit.views.clustering_view import render_clustering_page
+from app.presentation.streamlit.views.datasets_view import render_datasets_page
+from app.presentation.streamlit.views.evaluation_view import render_evaluation_page
+from app.presentation.streamlit.views.search_view import render_search_page
 
 
 def main() -> None:
