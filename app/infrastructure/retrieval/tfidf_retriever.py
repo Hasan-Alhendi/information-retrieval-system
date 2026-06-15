@@ -7,7 +7,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.domain.models.search_result import SearchResult
-from app.infrastructure.datasets.beir_loader import BeirDatasetLoader
+from app.infrastructure.datasets.dataset_loader import DatasetLoader
+from app.infrastructure.datasets.dataset_registry import get_dataset_config
 from app.infrastructure.preprocessing.spacy_preprocessor import (
     PREPROCESSING_BACKEND_TAG,
     SpacyPreprocessor,
@@ -23,11 +24,11 @@ class TFIDFRetriever:
 
     def __init__(
         self,
-        dataset_loader: BeirDatasetLoader | None = None,
+        dataset_loader: DatasetLoader | None = None,
         preprocessor: SpacyPreprocessor | None = None,
         max_docs: int | None = None,
     ) -> None:
-        self._dataset_loader = dataset_loader or BeirDatasetLoader()
+        self._dataset_loader = dataset_loader or DatasetLoader()
         self._preprocessor = preprocessor or SpacyPreprocessor()
         self._max_docs = max_docs
 
@@ -42,7 +43,11 @@ class TFIDFRetriever:
             dataset_name,
             max_docs=active_max_docs,
         )
-        normalized_documents = self._preprocessor.preprocess_many(documents)
+        profile = self._processing_profile(dataset_name)
+        normalized_documents = self._preprocessor.preprocess_many(
+            documents,
+            profile=profile,
+        )
 
         vectorizer = TfidfVectorizer(lowercase=False)
         matrix = vectorizer.fit_transform(normalized_documents)
@@ -58,7 +63,8 @@ class TFIDFRetriever:
         self.ensure_ready(dataset_name)
         vectorizer, matrix, doc_ids, documents = self.load(dataset_name)
 
-        processed_query = self._preprocessor.preprocess(query)
+        profile = self._processing_profile(dataset_name)
+        processed_query = self._preprocessor.preprocess(query, profile=profile)
         query_vector = vectorizer.transform([processed_query])
         similarities = cosine_similarity(query_vector, matrix)[0]
 
@@ -74,7 +80,10 @@ class TFIDFRetriever:
                     score=score,
                     rank=rank,
                     text=documents[index],
-                    metadata={"model": self.model_name},
+                    metadata={
+                        "model": self.model_name,
+                        "processing_profile": profile,
+                    },
                 )
             )
         return results
@@ -106,6 +115,10 @@ class TFIDFRetriever:
             "doc_ids": base_dir / f"doc_ids_{prefix}.joblib",
             "documents": base_dir / f"documents_{prefix}.joblib",
         }
+
+    @staticmethod
+    def _processing_profile(dataset_name: str) -> str:
+        return get_dataset_config(dataset_name, include_experimental=True).processing_profile
 
     @staticmethod
     def _is_ready(paths: dict[str, Path]) -> bool:
