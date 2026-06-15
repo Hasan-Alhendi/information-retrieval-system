@@ -29,34 +29,47 @@ class DatasetLoader:
         dataset_name: str,
         max_docs: int | None = None,
     ) -> Iterator[Document]:
-        """Stream documents from the configured dataset source.
-
-        This iterator is the foundation for later full-corpus batch indexing. For
-        ir_datasets corpora it does not materialize the full corpus in memory.
-        """
+        """Stream documents without materializing the full corpus in memory."""
         config = get_dataset_config(dataset_name, include_experimental=True)
+
+        if config.external_id:
+            dataset = _load_ir_dataset(config.external_id)
+            count = 0
+            for item in dataset.docs_iter():
+                yield _map_ir_document(
+                    item,
+                    config.external_id,
+                    config.processing_profile,
+                )
+                count += 1
+                if max_docs is not None and count >= max_docs:
+                    break
+            return
+
         if config.source == "beir":
             for document in self._beir_loader.load_documents(dataset_name, max_docs=max_docs):
                 yield document
             return
 
-        dataset = _load_ir_dataset(config.external_id)
-        count = 0
-        for item in dataset.docs_iter():
-            yield Document(
-                doc_id=str(item.doc_id),
-                title=_optional_text(getattr(item, "title", None)),
-                text=_optional_text(getattr(item, "text", "")) or "",
-                metadata={
-                    "stance": _optional_text(getattr(item, "stance", None)),
-                    "url": _optional_text(getattr(item, "url", None)),
-                    "source": config.external_id,
-                    "processing_profile": config.processing_profile,
-                },
-            )
-            count += 1
-            if max_docs is not None and count >= max_docs:
-                break
+        raise ValueError(f"Dataset '{dataset_name}' does not expose a streaming source.")
+
+    def load_queries_qrels(self, dataset_name: str) -> tuple[Queries, Qrels]:
+        """Load all benchmark queries and qrels without loading the full corpus."""
+        config = get_dataset_config(dataset_name, include_experimental=True)
+        if config.external_id:
+            dataset = _load_ir_dataset(config.external_id)
+            queries: Queries = {
+                str(item.query_id): str(item.text)
+                for item in dataset.queries_iter()
+            }
+            qrels: Qrels = {}
+            for item in dataset.qrels_iter():
+                query_id = str(item.query_id)
+                qrels.setdefault(query_id, {})[str(item.doc_id)] = int(item.relevance)
+            return queries, qrels
+
+        _, queries, qrels = self._beir_loader.load_raw(dataset_name)
+        return queries, qrels
 
     def prepare_dataset(
         self,
@@ -64,11 +77,11 @@ class DatasetLoader:
         max_docs: int | None = None,
         use_config_limit: bool = True,
     ) -> tuple[list[str], list[str], Queries, Qrels]:
-        """Prepare an in-memory dataset for the existing development pipeline.
+        """Prepare an in-memory development dataset.
 
-        Full-corpus ir_datasets indexing must use ``iter_documents`` and a batch
-        indexer. This guard prevents accidental materialization of hundreds of
-        thousands of documents on an 8 GB laptop.
+        Full-corpus indexing must use ``iter_documents`` and disk-backed batch
+        indexers. This method intentionally blocks full materialization for
+        ir_datasets-only corpora.
         """
         config = get_dataset_config(dataset_name, include_experimental=True)
         if config.source == "beir":
@@ -80,25 +93,16 @@ class DatasetLoader:
 
         if max_docs is None:
             raise RuntimeError(
-                "Full-corpus Touché loading is intentionally blocked in the legacy "
-                "in-memory pipeline. Use a development --max-docs value until the "
-                "batch indexers are enabled."
+                "Full-corpus loading is blocked in the legacy in-memory pipeline. "
+                "Use the disk-backed batch indexer for full datasets."
             )
 
-        dataset = _load_ir_dataset(config.external_id)
-        queries = {
-            str(item.query_id): str(item.text)
-            for item in dataset.queries_iter()
-        }
-        qrels: Qrels = {}
-        for item in dataset.qrels_iter():
-            query_id = str(item.query_id)
-            qrels.setdefault(query_id, {})[str(item.doc_id)] = int(item.relevance)
-
+        queries, qrels = self.load_queries_qrels(dataset_name)
         selected_ids = _select_qrels_aware_ids(qrels, limit=max_docs)
         selected_documents: dict[str, Document] = {}
-
+        dataset = _load_ir_dataset(config.external_id)
         docs_store = dataset.docs_store()
+
         for doc_id in selected_ids:
             try:
                 item = docs_store.get(doc_id)
@@ -106,7 +110,11 @@ class DatasetLoader:
                 continue
             if item is None:
                 continue
-            selected_documents[doc_id] = _map_ir_document(item, config.external_id, config.processing_profile)
+            selected_documents[doc_id] = _map_ir_document(
+                item,
+                config.external_id,
+                config.processing_profile,
+            )
 
         if len(selected_documents) < max_docs:
             for item in dataset.docs_iter():
@@ -139,18 +147,18 @@ class DatasetLoader:
     def summary(self, dataset_name: str) -> dict[str, int | str | None]:
         """Return dataset statistics and source information."""
         config = get_dataset_config(dataset_name, include_experimental=True)
-        if config.source == "beir":
-            summary = self._beir_loader.summary(dataset_name)
-            return {**summary, "source": config.source, "task_type": config.task_type}
+        if config.external_id:
+            dataset = _load_ir_dataset(config.external_id)
+            return {
+                "documents_count": _safe_count(dataset, "docs_count"),
+                "queries_count": _safe_count(dataset, "queries_count"),
+                "qrels_count": _safe_count(dataset, "qrels_count"),
+                "source": config.source,
+                "task_type": config.task_type,
+            }
 
-        dataset = _load_ir_dataset(config.external_id)
-        return {
-            "documents_count": _safe_count(dataset, "docs_count"),
-            "queries_count": _safe_count(dataset, "queries_count"),
-            "qrels_count": _safe_count(dataset, "qrels_count"),
-            "source": config.source,
-            "task_type": config.task_type,
-        }
+        summary = self._beir_loader.summary(dataset_name)
+        return {**summary, "source": config.source, "task_type": config.task_type}
 
 
 def _map_ir_document(item: Any, source: str | None, processing_profile: str) -> Document:
