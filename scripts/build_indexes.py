@@ -27,14 +27,26 @@ RETRIEVER_BUILDERS = {
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Build retrieval indexes.")
-    parser.add_argument("--dataset", required=True, help="Dataset name, e.g. msmarco or nq.")
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        help="Dataset name, e.g. quora or touche2020-v2.",
+    )
     parser.add_argument(
         "--model",
         default="tfidf",
         choices=sorted(RETRIEVER_BUILDERS),
         help="Retrieval model index to build.",
     )
-    parser.add_argument("--max-docs", type=int, default=None, help="Development document limit.")
+    parser.add_argument(
+        "--max-docs",
+        type=int,
+        default=None,
+        help=(
+            "Development document limit. Omit it for a checkpointed full-corpus "
+            "BM25/TF-IDF disk index."
+        ),
+    )
     parser.add_argument("--force", action="store_true", help="Rebuild even if index exists.")
     parser.add_argument("--bm25-k1", type=float, default=1.5, help="BM25 k1 parameter.")
     parser.add_argument("--bm25-b", type=float, default=0.75, help="BM25 b parameter.")
@@ -43,7 +55,12 @@ def parse_args() -> argparse.Namespace:
         default="sentence-transformers/all-MiniLM-L6-v2",
         help="SentenceTransformer model name for embedding indexes.",
     )
-    parser.add_argument("--batch-size", type=int, default=64, help="Embedding batch size.")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=128,
+        help="Batch size for preprocessing or embedding generation.",
+    )
     return parser.parse_args()
 
 
@@ -51,7 +68,17 @@ def main() -> None:
     """Build retrieval indexes."""
     args = parse_args()
     if args.model == "bm25":
-        retriever = BM25Retriever(k1=args.bm25_k1, b=args.bm25_b, max_docs=args.max_docs)
+        retriever = BM25Retriever(
+            k1=args.bm25_k1,
+            b=args.bm25_b,
+            max_docs=args.max_docs,
+            full_batch_size=args.batch_size,
+        )
+    elif args.model == "tfidf":
+        retriever = TFIDFRetriever(
+            max_docs=args.max_docs,
+            full_batch_size=args.batch_size,
+        )
     elif args.model == "embedding":
         retriever = EmbeddingRetriever(
             embedding_model_name=args.embedding_model,
@@ -64,7 +91,12 @@ def main() -> None:
             max_docs=args.max_docs,
             batch_size=args.batch_size,
         )
-        bm25 = BM25Retriever(k1=args.bm25_k1, b=args.bm25_b, max_docs=args.max_docs)
+        bm25 = BM25Retriever(
+            k1=args.bm25_k1,
+            b=args.bm25_b,
+            max_docs=args.max_docs,
+            full_batch_size=args.batch_size,
+        )
         if args.model == "hybrid_serial":
             retriever = HybridSerialRetriever(
                 bm25_retriever=bm25,
@@ -73,7 +105,10 @@ def main() -> None:
             )
         else:
             retriever = HybridParallelRetriever(
-                tfidf_retriever=TFIDFRetriever(max_docs=args.max_docs),
+                tfidf_retriever=TFIDFRetriever(
+                    max_docs=args.max_docs,
+                    full_batch_size=args.batch_size,
+                ),
                 bm25_retriever=bm25,
                 embedding_retriever=embedding,
                 max_docs=args.max_docs,
@@ -82,7 +117,7 @@ def main() -> None:
         retriever = RETRIEVER_BUILDERS[args.model](max_docs=args.max_docs)
 
     retriever.build(dataset_name=args.dataset, force=args.force, max_docs=args.max_docs)
-    suffix = f" with max_docs={args.max_docs}" if args.max_docs else ""
+    suffix = f" with max_docs={args.max_docs}" if args.max_docs else " (full corpus)"
     print(f"Built {args.model} index for dataset: {args.dataset}{suffix}")
 
 
