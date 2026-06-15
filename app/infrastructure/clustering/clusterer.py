@@ -5,26 +5,28 @@ from typing import Any
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import KMeans
+from sklearn.cluster import MiniBatchKMeans
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
-from app.infrastructure.datasets.beir_loader import BeirDatasetLoader
+from app.infrastructure.datasets.dataset_loader import DatasetLoader
 
 DEFAULT_CLUSTERING_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 class DocumentClusterer:
-    """Clusters documents using dense vector representations and KMeans."""
+    """Clusters documents using dense vectors and MiniBatchKMeans."""
 
     def __init__(
         self,
-        dataset_loader: BeirDatasetLoader | None = None,
+        dataset_loader: DatasetLoader | None = None,
         embedding_model_name: str = DEFAULT_CLUSTERING_EMBEDDING_MODEL,
         batch_size: int = 64,
+        clustering_batch_size: int = 1024,
     ) -> None:
-        self._dataset_loader = dataset_loader or BeirDatasetLoader()
+        self._dataset_loader = dataset_loader or DatasetLoader()
         self.embedding_model_name = embedding_model_name
         self.batch_size = batch_size
+        self.clustering_batch_size = clustering_batch_size
         self._model: SentenceTransformer | None = None
 
     def cluster(
@@ -49,7 +51,12 @@ class DocumentClusterer:
 
         cluster_count = max(1, min(number_of_clusters, len(documents)))
         embeddings = self._encode(documents)
-        kmeans = KMeans(n_clusters=cluster_count, random_state=42, n_init="auto")
+        kmeans = MiniBatchKMeans(
+            n_clusters=cluster_count,
+            random_state=42,
+            n_init="auto",
+            batch_size=min(self.clustering_batch_size, len(documents)),
+        )
         labels = kmeans.fit_predict(embeddings)
 
         grouped_indexes: dict[int, list[int]] = defaultdict(list)
@@ -82,6 +89,7 @@ class DocumentClusterer:
             "number_of_clusters": cluster_count,
             "documents_count": len(documents),
             "embedding_model": self.embedding_model_name,
+            "clustering_algorithm": "MiniBatchKMeans",
             "clusters": clusters,
         }
 
