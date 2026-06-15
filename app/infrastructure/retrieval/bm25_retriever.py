@@ -12,12 +12,13 @@ from app.infrastructure.preprocessing.spacy_preprocessor import (
     PREPROCESSING_BACKEND_TAG,
     SpacyPreprocessor,
 )
+from app.infrastructure.retrieval.disk_lexical_index import DiskLexicalIndex
 from app.infrastructure.storage.index_store import get_index_dir
 from app.infrastructure.storage.joblib_store import load_object, save_object
 
 
 class BM25Retriever:
-    """BM25 probabilistic retriever with tunable k1 and b parameters."""
+    """BM25 retriever with development and full-corpus storage modes."""
 
     model_name = "bm25"
 
@@ -28,16 +29,22 @@ class BM25Retriever:
         k1: float = DEFAULT_BM25_K1,
         b: float = DEFAULT_BM25_B,
         max_docs: int | None = None,
+        full_batch_size: int = 128,
     ) -> None:
         self._dataset_loader = dataset_loader or DatasetLoader()
         self._preprocessor = preprocessor or SpacyPreprocessor()
         self.k1 = k1
         self.b = b
         self._max_docs = max_docs
+        self._full_batch_size = full_batch_size
 
     def build(self, dataset_name: str, force: bool = False, max_docs: int | None = None) -> None:
         """Build and persist the BM25 index for a dataset."""
         active_max_docs = max_docs if max_docs is not None else self._max_docs
+        if self._uses_full_disk_index(dataset_name, active_max_docs):
+            self._disk_index(dataset_name).build(force=force)
+            return
+
         paths = self._paths(dataset_name, active_max_docs)
         if not force and self._is_ready(paths):
             return
@@ -70,6 +77,15 @@ class BM25Retriever:
 
     def search(self, query: str, dataset_name: str, top_k: int = 10) -> list[SearchResult]:
         """Search documents using BM25."""
+        if self._uses_full_disk_index(dataset_name, self._max_docs):
+            self.ensure_ready(dataset_name)
+            return self._disk_index(dataset_name).search_bm25(
+                query,
+                top_k=top_k,
+                k1=self.k1,
+                b=self.b,
+            )
+
         self.ensure_ready(dataset_name)
         bm25, doc_ids, documents = self.load(dataset_name)
 
@@ -95,24 +111,44 @@ class BM25Retriever:
                         "k1": self.k1,
                         "b": self.b,
                         "processing_profile": profile,
+                        "storage": "joblib_memory",
                     },
                 )
             )
         return results
 
     def ensure_ready(self, dataset_name: str) -> None:
-        """Build the BM25 index if it does not exist."""
+        """Build the selected BM25 storage mode if it does not exist."""
+        if self._uses_full_disk_index(dataset_name, self._max_docs):
+            disk_index = self._disk_index(dataset_name)
+            if not disk_index.exists():
+                disk_index.build()
+            return
+
         paths = self._paths(dataset_name, self._max_docs)
         if not self._is_ready(paths):
             self.build(dataset_name)
 
     def load(self, dataset_name: str):
-        """Load persisted BM25 artifacts."""
+        """Load persisted development BM25 artifacts."""
         paths = self._paths(dataset_name, self._max_docs)
         bm25 = load_object(paths["bm25"])
         doc_ids = load_object(paths["doc_ids"])
         documents = load_object(paths["documents"])
         return bm25, doc_ids, documents
+
+    def _disk_index(self, dataset_name: str) -> DiskLexicalIndex:
+        return DiskLexicalIndex(
+            dataset_name,
+            dataset_loader=self._dataset_loader,
+            preprocessor=self._preprocessor,
+            batch_size=self._full_batch_size,
+        )
+
+    @staticmethod
+    def _uses_full_disk_index(dataset_name: str, max_docs: int | None) -> bool:
+        config = get_dataset_config(dataset_name, include_experimental=True)
+        return max_docs is None and config.external_id is not None
 
     def _paths(self, dataset_name: str, max_docs: int | None = None) -> dict[str, Path]:
         base_dir = get_index_dir(dataset_name, self.model_name)
