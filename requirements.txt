@@ -12,6 +12,7 @@ rank-bm25
 faiss-cpu
 joblib
 beir
+ir-datasets
 pytest
 ruff
 mypy
