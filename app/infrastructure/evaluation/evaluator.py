@@ -7,6 +7,7 @@ from app.application.services.query_refinement_service import QueryRefinementSer
 from app.config import DEFAULT_TOP_K
 from app.domain.models.evaluation_result import EvaluationResult
 from app.infrastructure.datasets.dataset_loader import DatasetLoader
+from app.infrastructure.datasets.dataset_registry import get_dataset_config
 from app.infrastructure.evaluation.metrics import (
     average_precision,
     ndcg_at_k,
@@ -48,10 +49,15 @@ class RetrievalEvaluator:
 
     def evaluate(self, dataset_name: str, model_name: str) -> EvaluationResult:
         """Evaluate a retrieval model on a dataset."""
-        _, _, queries, qrels = self._dataset_loader.prepare_dataset(
-            dataset_name,
-            max_docs=self.max_docs,
-        )
+        config = get_dataset_config(dataset_name, include_experimental=True)
+        if self.max_docs is None and config.external_id:
+            queries, qrels = self._dataset_loader.load_queries_qrels(dataset_name)
+        else:
+            _, _, queries, qrels = self._dataset_loader.prepare_dataset(
+                dataset_name,
+                max_docs=self.max_docs,
+            )
+
         retriever = self._create_retriever(model_name)
         retriever.build(dataset_name=dataset_name, force=False, max_docs=self.max_docs)
 
