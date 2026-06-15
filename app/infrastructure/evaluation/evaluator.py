@@ -6,7 +6,7 @@ from typing import Any
 from app.application.services.query_refinement_service import QueryRefinementService
 from app.config import DEFAULT_TOP_K
 from app.domain.models.evaluation_result import EvaluationResult
-from app.infrastructure.datasets.beir_loader import BeirDatasetLoader
+from app.infrastructure.datasets.dataset_loader import DatasetLoader
 from app.infrastructure.evaluation.metrics import (
     average_precision,
     ndcg_at_k,
@@ -27,7 +27,7 @@ class RetrievalEvaluator:
 
     def __init__(
         self,
-        dataset_loader: BeirDatasetLoader | None = None,
+        dataset_loader: DatasetLoader | None = None,
         max_docs: int | None = None,
         top_k: int = DEFAULT_TOP_K,
         max_queries: int | None = None,
@@ -36,7 +36,7 @@ class RetrievalEvaluator:
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         use_query_refinement: bool = False,
     ) -> None:
-        self._dataset_loader = dataset_loader or BeirDatasetLoader()
+        self._dataset_loader = dataset_loader or DatasetLoader()
         self.max_docs = max_docs
         self.top_k = top_k
         self.max_queries = max_queries
