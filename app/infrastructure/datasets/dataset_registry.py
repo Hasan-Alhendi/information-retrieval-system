@@ -22,6 +22,7 @@ SUPPORTED_DATASETS: dict[str, DatasetConfig] = {
         display_name="Quora",
         source="beir",
         document_limit=250_000,
+        external_id="beir/quora/test",
         task_type="duplicate-question retrieval",
         processing_profile="question",
     ),
