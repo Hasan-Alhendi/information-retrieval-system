@@ -4,7 +4,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from app.domain.models.search_result import SearchResult
-from app.infrastructure.datasets.beir_loader import BeirDatasetLoader
+from app.infrastructure.datasets.dataset_loader import DatasetLoader
 from app.infrastructure.vector_store.faiss_store import FaissVectorStore
 
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -17,12 +17,12 @@ class EmbeddingRetriever:
 
     def __init__(
         self,
-        dataset_loader: BeirDatasetLoader | None = None,
+        dataset_loader: DatasetLoader | None = None,
         embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
         max_docs: int | None = None,
         batch_size: int = 64,
     ) -> None:
-        self._dataset_loader = dataset_loader or BeirDatasetLoader()
+        self._dataset_loader = dataset_loader or DatasetLoader()
         self.embedding_model_name = embedding_model_name
         self._max_docs = max_docs
         self._batch_size = batch_size
