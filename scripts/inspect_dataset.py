@@ -41,6 +41,11 @@ def parse_args() -> argparse.Namespace:
             "downloading the corpus, so metadata-only inspection uses zero."
         ),
     )
+    parser.add_argument(
+        "--include-nonrelevant-qrels",
+        action="store_true",
+        help="Include qrels with relevance zero in the displayed sample.",
+    )
     return parser.parse_args()
 
 
@@ -53,6 +58,7 @@ def main() -> None:
         sample_queries=max(0, args.sample_queries),
         sample_documents=max(0, args.sample_documents),
         sample_qrels=max(0, args.sample_qrels),
+        positive_qrels_only=not args.include_nonrelevant_qrels,
     )
     print(json.dumps(asdict(inspection), indent=2, ensure_ascii=False, default=str))
 
