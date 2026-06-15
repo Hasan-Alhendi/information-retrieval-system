@@ -39,6 +39,7 @@ class IrDatasetsInspector:
         sample_queries: int = 3,
         sample_documents: int = 0,
         sample_qrels: int = 5,
+        positive_qrels_only: bool = True,
     ) -> DatasetInspection:
         """Return counts, schemas, and small samples.
 
@@ -58,7 +59,11 @@ class IrDatasetsInspector:
         dataset = ir_datasets.load(config.external_id)
 
         query_items = _take(dataset.queries_iter(), sample_queries)
-        qrel_items = _take(dataset.qrels_iter(), sample_qrels)
+        qrel_items = _take_qrels(
+            dataset.qrels_iter(),
+            sample_qrels,
+            positive_only=positive_qrels_only,
+        )
         document_items = _take(dataset.docs_iter(), sample_documents) if sample_documents else []
 
         return DatasetInspection(
@@ -93,6 +98,33 @@ def _take(items: Iterable[Any], count: int) -> list[Any]:
     if count <= 0:
         return []
     return list(islice(items, count))
+
+
+def _take_qrels(
+    items: Iterable[Any],
+    count: int,
+    *,
+    positive_only: bool,
+) -> list[Any]:
+    """Take qrel samples, optionally keeping only relevance scores above zero."""
+    if count <= 0:
+        return []
+    if not positive_only:
+        return _take(items, count)
+
+    selected: list[Any] = []
+    for item in items:
+        relevance = getattr(item, "relevance", 0)
+        try:
+            is_positive = float(relevance) > 0
+        except (TypeError, ValueError):
+            is_positive = False
+        if not is_positive:
+            continue
+        selected.append(item)
+        if len(selected) >= count:
+            break
+    return selected
 
 
 def _field_names(items: list[Any]) -> list[str]:
