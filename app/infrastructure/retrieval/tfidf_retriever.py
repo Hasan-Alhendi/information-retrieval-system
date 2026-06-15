@@ -13,12 +13,13 @@ from app.infrastructure.preprocessing.spacy_preprocessor import (
     PREPROCESSING_BACKEND_TAG,
     SpacyPreprocessor,
 )
+from app.infrastructure.retrieval.disk_lexical_index import DiskLexicalIndex
 from app.infrastructure.storage.index_store import get_index_dir
 from app.infrastructure.storage.joblib_store import load_object, save_object
 
 
 class TFIDFRetriever:
-    """TF-IDF / Vector Space Model retriever."""
+    """TF-IDF retriever with development and full-corpus storage modes."""
 
     model_name = "tfidf"
 
@@ -27,14 +28,20 @@ class TFIDFRetriever:
         dataset_loader: DatasetLoader | None = None,
         preprocessor: SpacyPreprocessor | None = None,
         max_docs: int | None = None,
+        full_batch_size: int = 128,
     ) -> None:
         self._dataset_loader = dataset_loader or DatasetLoader()
         self._preprocessor = preprocessor or SpacyPreprocessor()
         self._max_docs = max_docs
+        self._full_batch_size = full_batch_size
 
     def build(self, dataset_name: str, force: bool = False, max_docs: int | None = None) -> None:
         """Build and persist the TF-IDF index for a dataset."""
         active_max_docs = max_docs if max_docs is not None else self._max_docs
+        if self._uses_full_disk_index(dataset_name, active_max_docs):
+            self._disk_index(dataset_name).build(force=force)
+            return
+
         paths = self._paths(dataset_name, active_max_docs)
         if not force and self._is_ready(paths):
             return
@@ -60,6 +67,10 @@ class TFIDFRetriever:
 
     def search(self, query: str, dataset_name: str, top_k: int = 10) -> list[SearchResult]:
         """Search documents using TF-IDF cosine similarity."""
+        if self._uses_full_disk_index(dataset_name, self._max_docs):
+            self.ensure_ready(dataset_name)
+            return self._disk_index(dataset_name).search_tfidf(query, top_k=top_k)
+
         self.ensure_ready(dataset_name)
         vectorizer, matrix, doc_ids, documents = self.load(dataset_name)
 
@@ -83,25 +94,45 @@ class TFIDFRetriever:
                     metadata={
                         "model": self.model_name,
                         "processing_profile": profile,
+                        "storage": "scipy_sparse_memory",
                     },
                 )
             )
         return results
 
     def ensure_ready(self, dataset_name: str) -> None:
-        """Build the TF-IDF index if it does not exist."""
+        """Build the selected TF-IDF storage mode if it does not exist."""
+        if self._uses_full_disk_index(dataset_name, self._max_docs):
+            disk_index = self._disk_index(dataset_name)
+            if not disk_index.exists():
+                disk_index.build()
+            return
+
         paths = self._paths(dataset_name, self._max_docs)
         if not self._is_ready(paths):
             self.build(dataset_name)
 
     def load(self, dataset_name: str):
-        """Load persisted TF-IDF artifacts."""
+        """Load persisted development TF-IDF artifacts."""
         paths = self._paths(dataset_name, self._max_docs)
         vectorizer = load_object(paths["vectorizer"])
         matrix = sparse.load_npz(paths["matrix"])
         doc_ids = load_object(paths["doc_ids"])
         documents = load_object(paths["documents"])
         return vectorizer, matrix, doc_ids, documents
+
+    def _disk_index(self, dataset_name: str) -> DiskLexicalIndex:
+        return DiskLexicalIndex(
+            dataset_name,
+            dataset_loader=self._dataset_loader,
+            preprocessor=self._preprocessor,
+            batch_size=self._full_batch_size,
+        )
+
+    @staticmethod
+    def _uses_full_disk_index(dataset_name: str, max_docs: int | None) -> bool:
+        config = get_dataset_config(dataset_name, include_experimental=True)
+        return max_docs is None and config.external_id is not None
 
     def _paths(self, dataset_name: str, max_docs: int | None = None) -> dict[str, Path]:
         base_dir = get_index_dir(dataset_name, self.model_name)
