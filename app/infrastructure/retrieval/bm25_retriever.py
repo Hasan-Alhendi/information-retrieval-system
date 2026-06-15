@@ -6,7 +6,8 @@ from rank_bm25 import BM25Okapi
 
 from app.config import DEFAULT_BM25_B, DEFAULT_BM25_K1
 from app.domain.models.search_result import SearchResult
-from app.infrastructure.datasets.beir_loader import BeirDatasetLoader
+from app.infrastructure.datasets.dataset_loader import DatasetLoader
+from app.infrastructure.datasets.dataset_registry import get_dataset_config
 from app.infrastructure.preprocessing.spacy_preprocessor import (
     PREPROCESSING_BACKEND_TAG,
     SpacyPreprocessor,
@@ -22,13 +23,13 @@ class BM25Retriever:
 
     def __init__(
         self,
-        dataset_loader: BeirDatasetLoader | None = None,
+        dataset_loader: DatasetLoader | None = None,
         preprocessor: SpacyPreprocessor | None = None,
         k1: float = DEFAULT_BM25_K1,
         b: float = DEFAULT_BM25_B,
         max_docs: int | None = None,
     ) -> None:
-        self._dataset_loader = dataset_loader or BeirDatasetLoader()
+        self._dataset_loader = dataset_loader or DatasetLoader()
         self._preprocessor = preprocessor or SpacyPreprocessor()
         self.k1 = k1
         self.b = b
@@ -45,7 +46,11 @@ class BM25Retriever:
             dataset_name,
             max_docs=active_max_docs,
         )
-        normalized_documents = self._preprocessor.preprocess_many(documents)
+        profile = self._processing_profile(dataset_name)
+        normalized_documents = self._preprocessor.preprocess_many(
+            documents,
+            profile=profile,
+        )
         tokenized_documents = [document.split() for document in normalized_documents]
         bm25 = BM25Okapi(tokenized_documents, k1=self.k1, b=self.b)
 
@@ -54,7 +59,12 @@ class BM25Retriever:
         save_object(doc_ids, paths["doc_ids"])
         save_object(documents, paths["documents"])
         save_object(
-            {"k1": self.k1, "b": self.b, "preprocessing": PREPROCESSING_BACKEND_TAG},
+            {
+                "k1": self.k1,
+                "b": self.b,
+                "preprocessing": PREPROCESSING_BACKEND_TAG,
+                "processing_profile": profile,
+            },
             paths["metadata"],
         )
 
@@ -63,7 +73,8 @@ class BM25Retriever:
         self.ensure_ready(dataset_name)
         bm25, doc_ids, documents = self.load(dataset_name)
 
-        processed_query = self._preprocessor.preprocess(query)
+        profile = self._processing_profile(dataset_name)
+        processed_query = self._preprocessor.preprocess(query, profile=profile)
         query_tokens = processed_query.split()
         scores = bm25.get_scores(query_tokens)
 
@@ -79,7 +90,12 @@ class BM25Retriever:
                     score=score,
                     rank=rank,
                     text=documents[index],
-                    metadata={"model": self.model_name, "k1": self.k1, "b": self.b},
+                    metadata={
+                        "model": self.model_name,
+                        "k1": self.k1,
+                        "b": self.b,
+                        "processing_profile": profile,
+                    },
                 )
             )
         return results
@@ -111,6 +127,10 @@ class BM25Retriever:
             "documents": base_dir / f"documents_{prefix}.joblib",
             "metadata": base_dir / f"metadata_{params}_{prefix}.joblib",
         }
+
+    @staticmethod
+    def _processing_profile(dataset_name: str) -> str:
+        return get_dataset_config(dataset_name, include_experimental=True).processing_profile
 
     @staticmethod
     def _is_ready(paths: dict[str, Path]) -> bool:
