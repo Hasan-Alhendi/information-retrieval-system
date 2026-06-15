@@ -13,7 +13,9 @@ from app.infrastructure.preprocessing.spacy_preprocessor import (
     PREPROCESSING_BACKEND_TAG,
     SpacyPreprocessor,
 )
-from app.infrastructure.retrieval.disk_lexical_index import DiskLexicalIndex
+from app.infrastructure.retrieval.optimized_disk_lexical_index import (
+    OptimizedDiskLexicalIndex,
+)
 from app.infrastructure.storage.index_store import get_index_dir
 from app.infrastructure.storage.joblib_store import load_object, save_object
 
@@ -121,8 +123,8 @@ class TFIDFRetriever:
         documents = load_object(paths["documents"])
         return vectorizer, matrix, doc_ids, documents
 
-    def _disk_index(self, dataset_name: str) -> DiskLexicalIndex:
-        return DiskLexicalIndex(
+    def _disk_index(self, dataset_name: str) -> OptimizedDiskLexicalIndex:
+        return OptimizedDiskLexicalIndex(
             dataset_name,
             dataset_loader=self._dataset_loader,
             preprocessor=self._preprocessor,
