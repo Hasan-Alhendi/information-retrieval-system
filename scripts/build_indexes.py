@@ -43,8 +43,8 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "Development document limit. Omit it for a checkpointed full-corpus "
-            "BM25/TF-IDF disk index."
+            "Development document limit. Omit it for checkpointed full-corpus "
+            "lexical or embedding indexes."
         ),
     )
     parser.add_argument("--force", action="store_true", help="Rebuild even if index exists.")
@@ -59,7 +59,19 @@ def parse_args() -> argparse.Namespace:
         "--batch-size",
         type=int,
         default=128,
-        help="Batch size for preprocessing or embedding generation.",
+        help=(
+            "spaCy batch size for lexical indexes or SentenceTransformer encode "
+            "batch size for embedding indexes. Use 16 on an 8 GB CPU laptop."
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint-size",
+        type=int,
+        default=5000,
+        help=(
+            "Documents encoded before each durable full-embedding checkpoint. "
+            "This does not change the neural-model batch size."
+        ),
     )
     return parser.parse_args()
 
@@ -84,12 +96,14 @@ def main() -> None:
             embedding_model_name=args.embedding_model,
             max_docs=args.max_docs,
             batch_size=args.batch_size,
+            full_checkpoint_size=args.checkpoint_size,
         )
     elif args.model in {"hybrid_serial", "hybrid_parallel"}:
         embedding = EmbeddingRetriever(
             embedding_model_name=args.embedding_model,
             max_docs=args.max_docs,
             batch_size=args.batch_size,
+            full_checkpoint_size=args.checkpoint_size,
         )
         bm25 = BM25Retriever(
             k1=args.bm25_k1,
