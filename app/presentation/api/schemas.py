@@ -1,5 +1,7 @@
 """API schemas."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -10,7 +12,11 @@ class SearchRequest(BaseModel):
     dataset_name: str
     model_name: str
     top_k: int = Field(default=10, ge=1, le=100)
-    max_docs: int | None = Field(default=None, ge=1)
+    max_docs: int | None = Field(
+        default=None,
+        ge=1,
+        description="Leave null to use finalized full-corpus indexes.",
+    )
     bm25_k1: float = Field(default=1.5, gt=0)
     bm25_b: float = Field(default=0.75, ge=0, le=1)
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -25,6 +31,7 @@ class SearchResultResponse(BaseModel):
     score: float
     title: str | None = None
     text: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class QueryRefinementResponse(BaseModel):
@@ -39,5 +46,9 @@ class QueryRefinementResponse(BaseModel):
 class SearchResponse(BaseModel):
     """Search response payload."""
 
+    dataset_name: str
+    model_name: str
+    index_scope: str
+    search_time_ms: float | None = None
     results: list[SearchResultResponse]
     query_refinement: QueryRefinementResponse | None = None
