@@ -2,14 +2,16 @@
 
 import streamlit as st
 
+from app.infrastructure.datasets.dataset_registry import SUPPORTED_DATASETS
+
 DATASET_OPTIONS = {
-    "Quora": "quora",
-    "Natural Questions": "nq",
+    config.display_name: dataset_name
+    for dataset_name, config in SUPPORTED_DATASETS.items()
 }
 
 MODEL_OPTIONS = {
-    "TF-IDF": "tfidf",
     "BM25": "bm25",
+    "TF-IDF": "tfidf",
     "Embedding": "embedding",
     "Hybrid Serial": "hybrid_serial",
     "Hybrid Parallel": "hybrid_parallel",
@@ -19,28 +21,41 @@ MODEL_OPTIONS = {
 def render_sidebar() -> dict[str, object]:
     """Render sidebar controls and return selected settings."""
     st.sidebar.title("IR System")
-    st.sidebar.caption("Clean Architecture Retrieval Demo")
+    st.sidebar.caption("Full-corpus retrieval with Clean Architecture")
 
-    dataset_label = st.sidebar.selectbox("Dataset", list(DATASET_OPTIONS.keys()))
-    model_label = st.sidebar.selectbox("Retrieval Model", list(MODEL_OPTIONS.keys()))
+    dataset_label = st.sidebar.selectbox("Dataset", list(DATASET_OPTIONS))
+    model_label = st.sidebar.selectbox("Retrieval Model", list(MODEL_OPTIONS))
 
     st.sidebar.divider()
     top_k = st.sidebar.slider("Top K", min_value=1, max_value=50, value=10)
-    max_docs = st.sidebar.number_input(
-        "Max documents for demo",
-        min_value=100,
-        max_value=250000,
-        value=1000,
-        step=100,
-        help="Use a small number for fast local demos.",
+    scope = st.sidebar.radio(
+        "Index scope",
+        ["Full dataset", "Development subset"],
+        help=(
+            "Full dataset uses the completed disk/FAISS indexes. Development subset "
+            "is intended only for quick code tests."
+        ),
     )
+    max_docs: int | None = None
+    if scope == "Development subset":
+        max_docs = int(
+            st.sidebar.number_input(
+                "Development documents",
+                min_value=100,
+                max_value=250000,
+                value=1000,
+                step=100,
+            )
+        )
+    else:
+        st.sidebar.success("Full-corpus mode")
 
     st.sidebar.divider()
     st.sidebar.subheader("Query Processing")
     use_query_refinement = st.sidebar.checkbox(
         "Enable Query Refinement",
         value=False,
-        help="Apply spelling correction and domain-specific query expansion.",
+        help="Apply spelling correction and query expansion before retrieval.",
     )
 
     st.sidebar.divider()
@@ -59,7 +74,8 @@ def render_sidebar() -> dict[str, object]:
         "dataset_name": DATASET_OPTIONS[dataset_label],
         "model_name": MODEL_OPTIONS[model_label],
         "top_k": top_k,
-        "max_docs": int(max_docs),
+        "max_docs": max_docs,
+        "index_scope": "full" if max_docs is None else "development",
         "use_query_refinement": bool(use_query_refinement),
         "bm25_k1": float(bm25_k1),
         "bm25_b": float(bm25_b),
