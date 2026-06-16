@@ -9,8 +9,11 @@ from app.presentation.api.routes.search_routes import router as search_router
 
 app = FastAPI(
     title="Information Retrieval System",
-    description="Clean Architecture IR system with multiple retrieval models.",
-    version="0.1.0",
+    description=(
+        "Full-corpus retrieval for Quora and Webis-Touché 2020 v2 with "
+        "BM25, TF-IDF, Embedding, Hybrid Serial, and Hybrid Parallel models."
+    ),
+    version="1.0.0",
 )
 
 app.include_router(dataset_router)
@@ -22,4 +25,4 @@ app.include_router(search_router)
 @app.get("/health", tags=["system"])
 def health_check() -> dict[str, str]:
     """Return API health status."""
-    return {"status": "ok"}
+    return {"status": "ok", "version": app.version}
