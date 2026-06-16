@@ -9,10 +9,18 @@ from app.infrastructure.retrieval.tfidf_retriever import TFIDFRetriever
 
 
 class ReciprocalRankFusionRetriever:
+    """Fuse TF-IDF, BM25, and embedding rankings with RRF."""
+
     model_name = "hybrid_parallel"
 
-    def __init__(self, tfidf_retriever=None, bm25_retriever=None,
-                 embedding_retriever=None, max_docs=None, fusion_k=60):
+    def __init__(
+        self,
+        tfidf_retriever=None,
+        bm25_retriever=None,
+        embedding_retriever=None,
+        max_docs=None,
+        fusion_k=60,
+    ):
         self.tfidf = tfidf_retriever or TFIDFRetriever(max_docs=max_docs)
         self.bm25 = bm25_retriever or BM25Retriever(max_docs=max_docs)
         self.embedding = embedding_retriever or EmbeddingRetriever(max_docs=max_docs)
@@ -38,6 +46,7 @@ class ReciprocalRankFusionRetriever:
             self.bm25.search(query, dataset_name, top_k=candidate_k),
             self.embedding.search(query, dataset_name, top_k=candidate_k),
         ]
+
         fused, lookup, sources = {}, {}, {}
         for results in groups:
             for rank, item in enumerate(results, 1):
@@ -48,6 +57,7 @@ class ReciprocalRankFusionRetriever:
                 sources.setdefault(item.doc_id, []).append(
                     item.metadata.get("model", "unknown")
                 )
+
         ranked_ids = sorted(fused, key=fused.get, reverse=True)[:top_k]
         latency = round((time.perf_counter() - started) * 1000, 3)
         return [
@@ -58,6 +68,7 @@ class ReciprocalRankFusionRetriever:
                 text=lookup[doc_id].text,
                 title=lookup[doc_id].title,
                 metadata={
+                    **lookup[doc_id].metadata,
                     "model": self.model_name,
                     "fusion": "reciprocal_rank_fusion",
                     "fusion_k": self.fusion_k,
