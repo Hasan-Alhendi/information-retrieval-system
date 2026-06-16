@@ -19,13 +19,15 @@ from app.presentation.streamlit.views.search_view import render_search_page
 def main() -> None:
     """Run the Streamlit UI."""
     st.set_page_config(
-        page_title="Information Retrieval System",
+        page_title="Full-Corpus Information Retrieval System",
         page_icon="🔎",
         layout="wide",
     )
 
     st.title("Information Retrieval System")
-    st.caption("TF-IDF · BM25 · Embeddings · Hybrid Retrieval · Evaluation")
+    st.caption(
+        "Quora · Webis-Touché 2020 v2 · Full-corpus BM25, TF-IDF, Embedding, and Hybrid Retrieval"
+    )
 
     settings = render_sidebar()
 
