@@ -4,6 +4,7 @@ streamlit
 pydantic
 numpy
 pandas
+matplotlib
 scikit-learn
 scipy
 spacy
