@@ -2,31 +2,38 @@
 
 A clean, modular Information Retrieval system built for the IR Project 2026 requirements.
 
-The project is designed using **Clean Architecture** and SOA-inspired services. It supports multiple retrieval models, evaluation pipelines, and an interactive Streamlit UI.
+The project follows **Clean Architecture** and supports full-corpus indexing, multiple retrieval models, benchmark evaluation, FastAPI, and an interactive Streamlit interface.
 
 ## Official Datasets
 
-The system officially uses two BEIR datasets:
+The final project uses two datasets with different retrieval tasks:
 
-- Quora (`quora`)
-- Natural Questions (`nq`)
+- Quora (`quora`): duplicate-question retrieval.
+- Webis-Touché 2020 v2 (`touche2020-v2`): argument retrieval.
 
-## Features
+Natural Questions is retained only as a legacy configuration and is not part of the final report datasets.
 
-- Dataset loading from BEIR-compatible datasets.
-- Text preprocessing with spaCy.
-- Retrieval models:
-  - TF-IDF / Vector Space Model
-  - BM25 with configurable `k1` and `b`
-  - Embedding-based retrieval with SentenceTransformers
-  - Hybrid Serial retrieval
-  - Hybrid Parallel retrieval with reciprocal-rank-style fusion
-- FAISS vector store for dense retrieval.
+## Retrieval Models
+
+- TF-IDF / Vector Space Model.
+- BM25 with configurable `k1` and `b`.
+- Embedding retrieval with `sentence-transformers/all-MiniLM-L6-v2` and FAISS.
+- Hybrid Serial: BM25 candidates followed by dense reranking.
+- Hybrid Parallel: TF-IDF, BM25, and Embedding fused with Reciprocal Rank Fusion.
+
+## Main Features
+
+- Dataset-specific preprocessing profiles.
+- Streaming document loading.
+- Disk-backed full-corpus BM25 and TF-IDF indexes.
+- Incremental FAISS construction with checkpoints and resume.
 - Query refinement.
 - Document clustering.
-- Evaluation using MAP, Recall, Precision@10, and nDCG.
+- Evaluation using MAP@K, Recall@K, Precision@10, and nDCG@K.
+- Search latency benchmarking.
+- Full-system evaluation charts.
 - FastAPI backend.
-- Streamlit user interface.
+- Streamlit interface.
 
 ## Architecture
 
@@ -37,45 +44,25 @@ app/
   infrastructure/  Datasets, retrieval, storage, vector stores, evaluation
   presentation/    FastAPI and Streamlit interfaces
   shared/          Constants, logging, and utilities
-scripts/           CLI scripts for datasets, indexing, and evaluation
+scripts/           Indexing, evaluation, benchmarking, and report charts
 tests/             Unit tests
-docs/              Architecture and project documentation
 storage/           Local datasets, indexes, vector stores, and evaluation outputs
+docs/              Architecture and project documentation
 ```
 
-## Preprocessing Decision
-
-The main preprocessing pipeline uses **spaCy** because it provides a production-oriented NLP pipeline, reliable tokenization, lemmatization, and clear integration with Clean Architecture.
-
-NLTK may be used only as a secondary helper if needed.
-
-## Quick Start
-
-### 1. Create and activate a virtual environment
+## Installation
 
 Windows:
 
 ```bash
 python -m venv .env
 .env\Scripts\activate
-```
-
-macOS / Linux:
-
-```bash
-python -m venv .env
-source .env/bin/activate
-```
-
-### 2. Install dependencies
-
-```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
-### 3. Run the API
+## Run the API
 
 ```bash
 uvicorn app.main:app --reload
@@ -88,7 +75,7 @@ http://127.0.0.1:8000/health
 http://127.0.0.1:8000/docs
 ```
 
-### 4. Run the Streamlit UI
+## Run Streamlit
 
 ```bash
 streamlit run app/presentation/streamlit/ui.py
@@ -100,30 +87,95 @@ Open:
 http://localhost:8501
 ```
 
-## Build Indexes
+The sidebar supports:
 
-Use a small `--max-docs` value for local demos.
+- Quora and Touché.
+- Full-corpus mode or a development subset.
+- All five retrieval models.
+- Top K, BM25 parameters, embedding model, and query refinement.
+
+## Build Full Touché Indexes
+
+Lexical index shared by BM25 and TF-IDF:
 
 ```bash
-python scripts/build_indexes.py --dataset quora --model bm25 --max-docs 1000
-python scripts/build_indexes.py --dataset quora --model tfidf --max-docs 1000
-python scripts/build_indexes.py --dataset quora --model embedding --max-docs 1000
-python scripts/build_indexes.py --dataset quora --model hybrid_serial --max-docs 1000
-python scripts/build_indexes.py --dataset quora --model hybrid_parallel --max-docs 1000
-
-python scripts/build_indexes.py --dataset nq --model bm25 --max-docs 1000
-python scripts/build_indexes.py --dataset nq --model tfidf --max-docs 1000
+python scripts/build_indexes.py --dataset touche2020-v2 --model bm25 --batch-size 128
 ```
 
-## Search API Example
+Full embedding index:
+
+```bash
+python scripts/build_indexes.py --dataset touche2020-v2 --model embedding --batch-size 16 --checkpoint-size 5000
+```
+
+Do not use `--force` when resuming an interrupted build.
+
+Check progress:
+
+```bash
+python scripts/full_index_status.py --dataset touche2020-v2
+python scripts/full_embedding_status.py --dataset touche2020-v2
+```
+
+## Search Examples
+
+BM25 or TF-IDF:
+
+```bash
+python scripts/search_full.py --dataset touche2020-v2 --model bm25 --query "Should teachers get tenure?" --top-k 10
+```
+
+Embedding:
+
+```bash
+python scripts/search_full_embedding.py --dataset touche2020-v2 --query "Should teachers get tenure?" --top-k 10
+```
+
+The Streamlit interface and FastAPI `/search` endpoint use the corrected Hybrid Serial and Hybrid Parallel implementations.
+
+## Full-System Evaluation
+
+Evaluate all five models on the complete dataset:
+
+```bash
+python scripts/evaluate_full_system.py --dataset touche2020-v2 --max-queries 49 --top-k 10
+```
+
+Output:
+
+```text
+storage/evaluation/touche2020-v2_full_system_evaluation.csv
+```
+
+Benchmark embedding and hybrid latency:
+
+```bash
+python scripts/benchmark_dense_hybrids.py --dataset touche2020-v2 --models embedding hybrid_serial hybrid_parallel --max-queries 10 --repeats 3 --top-k 10
+```
+
+Generate report charts:
+
+```bash
+python scripts/generate_evaluation_charts.py --dataset touche2020-v2
+```
+
+Charts are saved under:
+
+```text
+storage/evaluation/charts/touche2020-v2/
+```
+
+## API Search Example
+
+Use `max_docs: null` for full-corpus mode:
 
 ```json
 {
-  "query": "how can I learn programming",
-  "dataset_name": "quora",
-  "model_name": "bm25",
+  "query": "Should teachers get tenure?",
+  "dataset_name": "touche2020-v2",
+  "model_name": "hybrid_serial",
   "top_k": 10,
-  "max_docs": 1000,
+  "max_docs": null,
   "bm25_k1": 1.5,
   "bm25_b": 0.75,
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
@@ -137,42 +189,8 @@ Send it to:
 POST /search
 ```
 
-## Evaluate Models
-
-```bash
-python scripts/evaluate_all.py --dataset quora --models bm25 tfidf --max-docs 1000 --max-queries 10
-python scripts/evaluate_all.py --dataset quora --models hybrid_parallel --max-docs 1000 --max-queries 10
-python scripts/evaluate_all.py --dataset nq --models bm25 tfidf --max-docs 1000 --max-queries 10
-```
-
-Evaluation output is saved under:
-
-```text
-storage/evaluation/
-```
-
-## Run Tests
+## Tests
 
 ```bash
 pytest
 ```
-
-## Current Status
-
-Implemented:
-
-- Clean Architecture skeleton
-- FastAPI health, search, dataset, and evaluation routes
-- Streamlit UI
-- spaCy preprocessing
-- BEIR dataset loader
-- TF-IDF retriever
-- BM25 retriever
-- Embedding retriever
-- FAISS vector store
-- Hybrid Serial retriever
-- Hybrid Parallel retriever
-- Query refinement
-- Document clustering
-- Evaluation pipeline
-- Basic tests
