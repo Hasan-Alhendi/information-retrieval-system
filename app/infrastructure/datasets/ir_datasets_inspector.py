@@ -30,7 +30,7 @@ class DatasetInspection:
 
 
 class IrDatasetsInspector:
-    """Inspect an ir_datasets dataset before integrating it into retrieval pipelines."""
+    """Inspect any registry entry that exposes an ``ir_datasets`` external ID."""
 
     def inspect(
         self,
@@ -43,11 +43,12 @@ class IrDatasetsInspector:
     ) -> DatasetInspection:
         """Return counts, schemas, and small samples.
 
-        Reading document samples may trigger downloading the corpus. Keep
-        ``sample_documents`` at zero for a metadata-only inspection.
+        A dataset may keep ``source='beir'`` for development loading while also
+        exposing an ``external_id`` for streaming full-corpus access. Therefore
+        inspection depends on ``external_id`` rather than the source label.
         """
-        if config.source != "ir_datasets" or not config.external_id:
-            raise ValueError("The dataset must define source='ir_datasets' and an external_id.")
+        if not config.external_id:
+            raise ValueError("The dataset must define an ir_datasets external_id.")
 
         try:
             import ir_datasets
@@ -57,7 +58,6 @@ class IrDatasetsInspector:
             ) from exc
 
         dataset = ir_datasets.load(config.external_id)
-
         query_items = _take(dataset.queries_iter(), sample_queries)
         qrel_items = _take_qrels(
             dataset.qrels_iter(),
