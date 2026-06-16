@@ -21,23 +21,10 @@ SUPPORTED_DATASETS: dict[str, DatasetConfig] = {
         name="quora",
         display_name="Quora",
         source="beir",
-        document_limit=250_000,
         external_id="beir/quora/test",
         task_type="duplicate-question retrieval",
         processing_profile="question",
     ),
-    "nq": DatasetConfig(
-        name="nq",
-        display_name="Natural Questions",
-        source="beir",
-        document_limit=250_000,
-        task_type="question-answer passage retrieval",
-        processing_profile="passage",
-    ),
-}
-
-
-EXPERIMENTAL_DATASETS: dict[str, DatasetConfig] = {
     "touche2020-v2": DatasetConfig(
         name="touche2020-v2",
         display_name="Webis-Touché 2020 v2",
@@ -49,7 +36,19 @@ EXPERIMENTAL_DATASETS: dict[str, DatasetConfig] = {
 }
 
 
-PRIMARY_REPORT_DATASETS = ("quora", "nq")
+EXPERIMENTAL_DATASETS: dict[str, DatasetConfig] = {
+    "nq": DatasetConfig(
+        name="nq",
+        display_name="Natural Questions (legacy)",
+        source="beir",
+        document_limit=250_000,
+        task_type="question-answer passage retrieval",
+        processing_profile="passage",
+    ),
+}
+
+
+PRIMARY_REPORT_DATASETS = ("quora", "touche2020-v2")
 
 
 def get_dataset_config(dataset_name: str, *, include_experimental: bool = False) -> DatasetConfig:
