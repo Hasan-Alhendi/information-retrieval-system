@@ -9,10 +9,19 @@ from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
 
 
 class HybridSerialRetrieverV2:
+    """Retrieve BM25 candidates and rerank those same candidates semantically."""
+
     model_name = "hybrid_serial"
 
-    def __init__(self, bm25_retriever=None, embedding_retriever=None, max_docs=None,
-                 candidate_k=100, bm25_weight=0.3, embedding_weight=0.7):
+    def __init__(
+        self,
+        bm25_retriever=None,
+        embedding_retriever=None,
+        max_docs=None,
+        candidate_k=100,
+        bm25_weight=0.3,
+        embedding_weight=0.7,
+    ):
         self.bm25 = bm25_retriever or BM25Retriever(max_docs=max_docs)
         self.embedding = embedding_retriever or EmbeddingRetriever(max_docs=max_docs)
         self.scorer = DenseCandidateScorer(self.embedding.embedding_model_name)
@@ -34,21 +43,29 @@ class HybridSerialRetrieverV2:
     def search(self, query, dataset_name, top_k=10):
         started = time.perf_counter()
         candidates = self.bm25.search(
-            query, dataset_name, top_k=max(top_k, self.candidate_k)
+            query,
+            dataset_name,
+            top_k=max(top_k, self.candidate_k),
         )
         if not candidates:
             return []
+
         if self.max_docs is None:
             dense = self.scorer.score(
-                query, dataset_name, [item.doc_id for item in candidates]
+                query,
+                dataset_name,
+                [item.doc_id for item in candidates],
             )
         else:
             dense = {
                 item.doc_id: item.score
                 for item in self.embedding.search(
-                    query, dataset_name, top_k=max(top_k, self.candidate_k)
+                    query,
+                    dataset_name,
+                    top_k=max(top_k, self.candidate_k),
                 )
             }
+
         lexical = _normalize({item.doc_id: item.score for item in candidates})
         semantic = _normalize(dense)
         ranked = []
@@ -59,6 +76,7 @@ class HybridSerialRetrieverV2:
             )
             ranked.append((score, item, dense.get(item.doc_id, 0.0)))
         ranked.sort(key=lambda row: row[0], reverse=True)
+
         latency = round((time.perf_counter() - started) * 1000, 3)
         return [
             SearchResult(
@@ -68,10 +86,14 @@ class HybridSerialRetrieverV2:
                 text=item.text,
                 title=item.title,
                 metadata={
+                    **item.metadata,
                     "model": self.model_name,
                     "pipeline": "bm25_then_dense_reranking",
+                    "candidate_k": max(top_k, self.candidate_k),
                     "bm25_score": item.score,
                     "embedding_score": dense_score,
+                    "bm25_weight": self.bm25_weight,
+                    "embedding_weight": self.embedding_weight,
                     "query_time_ms": latency,
                 },
             )
