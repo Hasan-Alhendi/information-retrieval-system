@@ -94,7 +94,50 @@ The sidebar supports:
 - All five retrieval models.
 - Top K, BM25 parameters, embedding model, and query refinement.
 
-## Build Full Touché Indexes
+## Validate a Dataset Before Full Indexing
+
+```bash
+python scripts/validate_full_dataset.py --dataset quora
+python scripts/validate_full_dataset.py --dataset touche2020-v2
+```
+
+The validation checks document/query/qrel availability, samples real records, verifies positive qrels, reports free disk space, and prints the recommended smoke-test commands.
+
+## Quora Full-Corpus Preparation
+
+Run the lexical smoke test:
+
+```bash
+python scripts/smoke_test_full_index.py --dataset quora
+```
+
+Run the embedding smoke test:
+
+```bash
+python scripts/smoke_test_full_embedding.py --dataset quora --checkpoint-size 1000 --force
+```
+
+After both smoke tests succeed, build the complete lexical index:
+
+```bash
+python scripts/build_full_dataset.py --dataset quora --components lexical
+```
+
+Then build the complete embedding index:
+
+```bash
+python scripts/build_full_dataset.py --dataset quora --components embedding
+```
+
+Both commands resume automatically after interruption. Do not use `--force` when resuming.
+
+Check both indexes together:
+
+```bash
+python scripts/full_dataset_status.py --dataset quora
+```
+
+## Touché Full-Corpus Indexes
 
 Lexical index shared by BM25 and TF-IDF:
 
@@ -108,13 +151,10 @@ Full embedding index:
 python scripts/build_indexes.py --dataset touche2020-v2 --model embedding --batch-size 16 --checkpoint-size 5000
 ```
 
-Do not use `--force` when resuming an interrupted build.
-
 Check progress:
 
 ```bash
-python scripts/full_index_status.py --dataset touche2020-v2
-python scripts/full_embedding_status.py --dataset touche2020-v2
+python scripts/full_dataset_status.py --dataset touche2020-v2
 ```
 
 ## Search Examples
@@ -123,12 +163,14 @@ BM25 or TF-IDF:
 
 ```bash
 python scripts/search_full.py --dataset touche2020-v2 --model bm25 --query "Should teachers get tenure?" --top-k 10
+python scripts/search_full.py --dataset quora --model bm25 --query "How can I learn programming?" --top-k 10
 ```
 
 Embedding:
 
 ```bash
 python scripts/search_full_embedding.py --dataset touche2020-v2 --query "Should teachers get tenure?" --top-k 10
+python scripts/search_full_embedding.py --dataset quora --query "How can I learn programming?" --top-k 10
 ```
 
 The Streamlit interface and FastAPI `/search` endpoint use the corrected Hybrid Serial and Hybrid Parallel implementations.
@@ -139,12 +181,13 @@ Evaluate all five models on the complete dataset:
 
 ```bash
 python scripts/evaluate_full_system.py --dataset touche2020-v2 --max-queries 49 --top-k 10
+python scripts/evaluate_full_system.py --dataset quora --max-queries 100 --top-k 10
 ```
 
-Output:
+Outputs are saved under:
 
 ```text
-storage/evaluation/touche2020-v2_full_system_evaluation.csv
+storage/evaluation/
 ```
 
 Benchmark embedding and hybrid latency:
@@ -162,7 +205,7 @@ python scripts/generate_evaluation_charts.py --dataset touche2020-v2
 Charts are saved under:
 
 ```text
-storage/evaluation/charts/touche2020-v2/
+storage/evaluation/charts/<dataset-name>/
 ```
 
 ## API Search Example
