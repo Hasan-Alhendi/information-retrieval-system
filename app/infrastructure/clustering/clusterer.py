@@ -1,4 +1,6 @@
-"""Document clustering implementation."""
+"""Document clustering implementation with quantitative evaluation."""
+
+from __future__ import annotations
 
 from collections import Counter, defaultdict
 from typing import Any
@@ -6,15 +8,19 @@ from typing import Any
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import MiniBatchKMeans
+from sklearn.decomposition import PCA
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+from sklearn.metrics import davies_bouldin_score, silhouette_score
 
 from app.infrastructure.datasets.dataset_loader import DatasetLoader
 
 DEFAULT_CLUSTERING_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+MAX_SILHOUETTE_SAMPLES = 2000
+MAX_PROJECTION_POINTS = 2000
 
 
 class DocumentClusterer:
-    """Clusters documents using dense vectors and MiniBatchKMeans."""
+    """Cluster documents using dense vectors and MiniBatchKMeans."""
 
     def __init__(
         self,
@@ -36,7 +42,7 @@ class DocumentClusterer:
         max_docs: int | None = 1000,
         sample_size: int = 5,
     ) -> dict[str, Any]:
-        """Cluster documents for a dataset and return cluster summaries."""
+        """Cluster documents and return summaries, metrics, and PCA points."""
         doc_ids, documents, _, _ = self._dataset_loader.prepare_dataset(
             dataset_name,
             max_docs=max_docs,
@@ -46,6 +52,15 @@ class DocumentClusterer:
                 "dataset_name": dataset_name,
                 "number_of_clusters": 0,
                 "documents_count": 0,
+                "embedding_model": self.embedding_model_name,
+                "clustering_algorithm": "MiniBatchKMeans",
+                "evaluation": {
+                    "silhouette_score": None,
+                    "davies_bouldin_index": None,
+                    "inertia": None,
+                    "silhouette_sample_size": 0,
+                },
+                "projection": [],
                 "clusters": [],
             }
 
@@ -90,6 +105,16 @@ class DocumentClusterer:
             "documents_count": len(documents),
             "embedding_model": self.embedding_model_name,
             "clustering_algorithm": "MiniBatchKMeans",
+            "evaluation": _evaluate_clusters(
+                embeddings=embeddings,
+                labels=labels,
+                inertia=float(kmeans.inertia_),
+            ),
+            "projection": _pca_projection(
+                embeddings=embeddings,
+                labels=labels,
+                doc_ids=doc_ids,
+            ),
             "clusters": clusters,
         }
 
@@ -108,6 +133,83 @@ class DocumentClusterer:
         if self._model is None:
             self._model = SentenceTransformer(self.embedding_model_name)
         return self._model
+
+
+def _evaluate_clusters(
+    *,
+    embeddings: np.ndarray,
+    labels: np.ndarray,
+    inertia: float,
+) -> dict[str, float | int | None]:
+    """Compute internal clustering metrics with bounded Silhouette cost."""
+    document_count = int(len(embeddings))
+    unique_clusters = np.unique(labels)
+    if len(unique_clusters) < 2 or len(unique_clusters) >= document_count:
+        return {
+            "silhouette_score": None,
+            "davies_bouldin_index": None,
+            "inertia": round(float(inertia), 6),
+            "silhouette_sample_size": 0,
+        }
+
+    silhouette_sample_size = min(document_count, MAX_SILHOUETTE_SAMPLES)
+    silhouette = silhouette_score(
+        embeddings,
+        labels,
+        metric="euclidean",
+        sample_size=(
+            silhouette_sample_size
+            if silhouette_sample_size < document_count
+            else None
+        ),
+        random_state=42,
+    )
+    davies_bouldin = davies_bouldin_score(embeddings, labels)
+    return {
+        "silhouette_score": round(float(silhouette), 6),
+        "davies_bouldin_index": round(float(davies_bouldin), 6),
+        "inertia": round(float(inertia), 6),
+        "silhouette_sample_size": silhouette_sample_size,
+    }
+
+
+def _pca_projection(
+    *,
+    embeddings: np.ndarray,
+    labels: np.ndarray,
+    doc_ids: list[str],
+) -> list[dict[str, Any]]:
+    """Project a bounded deterministic sample to two dimensions for display."""
+    document_count = len(embeddings)
+    if document_count < 2:
+        return []
+
+    point_count = min(document_count, MAX_PROJECTION_POINTS)
+    if point_count == document_count:
+        selected_indexes = np.arange(document_count)
+    else:
+        random_generator = np.random.default_rng(42)
+        selected_indexes = np.sort(
+            random_generator.choice(
+                document_count,
+                size=point_count,
+                replace=False,
+            )
+        )
+
+    selected_embeddings = embeddings[selected_indexes]
+    coordinates = PCA(n_components=2, random_state=42).fit_transform(
+        selected_embeddings
+    )
+    return [
+        {
+            "doc_id": str(doc_ids[int(index)]),
+            "cluster": str(int(labels[int(index)])),
+            "pc1": float(coordinates[position, 0]),
+            "pc2": float(coordinates[position, 1]),
+        }
+        for position, index in enumerate(selected_indexes)
+    ]
 
 
 def _top_terms(documents: list[str], limit: int = 8) -> list[str]:
