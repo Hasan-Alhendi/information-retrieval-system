@@ -18,7 +18,7 @@ from app.presentation.streamlit.views.search_view import render_search_page
 
 
 def _hide_streamlit_toolbar() -> None:
-    """Hide Streamlit chrome and define a theme-aware print layout."""
+    """Hide Streamlit chrome and define a system-theme-aware print layout."""
     st.markdown(
         """
         <style>
@@ -45,22 +45,9 @@ def _hide_streamlit_toolbar() -> None:
         }
 
         @media print {
-            :root {
-                color-scheme: light dark;
-            }
-
-            html,
-            body,
-            .stApp,
-            [data-testid="stAppViewContainer"],
-            [data-testid="stMain"] {
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                overflow: visible !important;
-                background-color: var(--background-color) !important;
-                color: var(--text-color) !important;
+            *,
+            *::before,
+            *::after {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
@@ -82,6 +69,18 @@ def _hide_streamlit_toolbar() -> None:
                 display: none !important;
             }
 
+            html,
+            body,
+            .stApp,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stMain"] {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
             .block-container {
                 width: 100% !important;
                 max-width: 188mm !important;
@@ -93,21 +92,18 @@ def _hide_streamlit_toolbar() -> None:
                 font-size: 20pt !important;
                 line-height: 1.15 !important;
                 margin: 0 0 5mm !important;
-                color: var(--text-color) !important;
             }
 
             h2 {
                 font-size: 15pt !important;
                 line-height: 1.2 !important;
                 margin: 5mm 0 3mm !important;
-                color: var(--text-color) !important;
             }
 
             h3 {
                 font-size: 12pt !important;
                 line-height: 1.25 !important;
                 margin: 4mm 0 2mm !important;
-                color: var(--text-color) !important;
             }
 
             p,
@@ -116,7 +112,6 @@ def _hide_streamlit_toolbar() -> None:
             [data-testid="stMarkdownContainer"] {
                 font-size: 9.5pt !important;
                 line-height: 1.4 !important;
-                color: var(--text-color) !important;
             }
 
             [data-testid="stMetric"],
@@ -133,15 +128,6 @@ def _hide_streamlit_toolbar() -> None:
                 page-break-inside: avoid !important;
             }
 
-            [data-testid="stMetric"],
-            [data-testid="stVerticalBlockBorderWrapper"],
-            details {
-                border-color: rgba(127, 127, 127, 0.38) !important;
-                box-shadow: none !important;
-                background-color: var(--secondary-background-color) !important;
-                color: var(--text-color) !important;
-            }
-
             [data-testid="stDataFrame"],
             [data-testid="stTable"],
             table {
@@ -149,8 +135,6 @@ def _hide_streamlit_toolbar() -> None:
                 max-width: 100% !important;
                 overflow: visible !important;
                 font-size: 8.5pt !important;
-                color: var(--text-color) !important;
-                background-color: var(--background-color) !important;
             }
 
             img,
@@ -160,13 +144,108 @@ def _hide_streamlit_toolbar() -> None:
                 height: auto !important;
             }
 
-            a {
-                color: var(--primary-color) !important;
+            /* Laptop/system dark mode. This class is added immediately before print. */
+            html.print-system-dark,
+            html.print-system-dark body,
+            html.print-system-dark .stApp,
+            html.print-system-dark [data-testid="stAppViewContainer"],
+            html.print-system-dark [data-testid="stMain"] {
+                color-scheme: dark !important;
+                background: #0e1117 !important;
+                background-color: #0e1117 !important;
+                color: #fafafa !important;
+                box-shadow: inset 0 0 0 100vmax #0e1117 !important;
+            }
+
+            html.print-system-dark h1,
+            html.print-system-dark h2,
+            html.print-system-dark h3,
+            html.print-system-dark h4,
+            html.print-system-dark h5,
+            html.print-system-dark h6,
+            html.print-system-dark p,
+            html.print-system-dark li,
+            html.print-system-dark label,
+            html.print-system-dark span,
+            html.print-system-dark div,
+            html.print-system-dark td,
+            html.print-system-dark th,
+            html.print-system-dark [data-testid="stMarkdownContainer"] {
+                color: #fafafa !important;
+            }
+
+            html.print-system-dark [data-testid="stMetric"],
+            html.print-system-dark [data-testid="stVerticalBlockBorderWrapper"],
+            html.print-system-dark details,
+            html.print-system-dark [data-testid="stDataFrame"],
+            html.print-system-dark [data-testid="stTable"],
+            html.print-system-dark table {
+                background: #262730 !important;
+                background-color: #262730 !important;
+                color: #fafafa !important;
+                border-color: #4b5563 !important;
+                box-shadow: none !important;
+            }
+
+            html.print-system-dark a {
+                color: #8ec5ff !important;
                 text-decoration: none !important;
             }
 
-            hr {
-                border-color: rgba(127, 127, 127, 0.38) !important;
+            html.print-system-dark hr {
+                border-color: #4b5563 !important;
+            }
+
+            /* Laptop/system light mode. */
+            html.print-system-light,
+            html.print-system-light body,
+            html.print-system-light .stApp,
+            html.print-system-light [data-testid="stAppViewContainer"],
+            html.print-system-light [data-testid="stMain"] {
+                color-scheme: light !important;
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                color: #111827 !important;
+                box-shadow: inset 0 0 0 100vmax #ffffff !important;
+            }
+
+            html.print-system-light h1,
+            html.print-system-light h2,
+            html.print-system-light h3,
+            html.print-system-light h4,
+            html.print-system-light h5,
+            html.print-system-light h6,
+            html.print-system-light p,
+            html.print-system-light li,
+            html.print-system-light label,
+            html.print-system-light span,
+            html.print-system-light div,
+            html.print-system-light td,
+            html.print-system-light th,
+            html.print-system-light [data-testid="stMarkdownContainer"] {
+                color: #111827 !important;
+            }
+
+            html.print-system-light [data-testid="stMetric"],
+            html.print-system-light [data-testid="stVerticalBlockBorderWrapper"],
+            html.print-system-light details,
+            html.print-system-light [data-testid="stDataFrame"],
+            html.print-system-light [data-testid="stTable"],
+            html.print-system-light table {
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                color: #111827 !important;
+                border-color: #d1d5db !important;
+                box-shadow: none !important;
+            }
+
+            html.print-system-light a {
+                color: #2563eb !important;
+                text-decoration: none !important;
+            }
+
+            html.print-system-light hr {
+                border-color: #d1d5db !important;
             }
         }
         </style>
@@ -176,7 +255,7 @@ def _hide_streamlit_toolbar() -> None:
 
 
 def _render_print_button() -> None:
-    """Render a compact neutral print button."""
+    """Render a compact print button that follows the laptop system theme."""
     components.html(
         """
         <style>
@@ -214,16 +293,22 @@ def _render_print_button() -> None:
                 transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
             }
 
+            @media (prefers-color-scheme: dark) {
+                .print-button {
+                    border-color: #4b5563;
+                    background: #262730;
+                    color: #fafafa;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+                }
+            }
+
             .print-button:hover {
-                background: #eef2f7;
-                border-color: #94a3b8;
-                box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12);
+                filter: brightness(1.08);
                 transform: translateY(-1px);
             }
 
             .print-button:active {
                 transform: translateY(0);
-                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
             }
 
             .print-button:focus-visible {
@@ -255,8 +340,39 @@ def _render_print_button() -> None:
         </div>
 
         <script>
-            document.getElementById("print-page").addEventListener("click", function () {
-                window.parent.print();
+            const printButton = document.getElementById("print-page");
+
+            printButton.addEventListener("click", function () {
+                const parentWindow = window.parent;
+                const parentDocument = parentWindow.document;
+                const root = parentDocument.documentElement;
+                const body = parentDocument.body;
+                const systemUsesDarkMode = parentWindow.matchMedia(
+                    "(prefers-color-scheme: dark)"
+                ).matches;
+
+                root.classList.remove("print-system-dark", "print-system-light");
+                body.classList.remove("print-system-dark", "print-system-light");
+
+                const printThemeClass = systemUsesDarkMode
+                    ? "print-system-dark"
+                    : "print-system-light";
+
+                root.classList.add(printThemeClass);
+                body.classList.add(printThemeClass);
+
+                const cleanupPrintTheme = function () {
+                    root.classList.remove("print-system-dark", "print-system-light");
+                    body.classList.remove("print-system-dark", "print-system-light");
+                };
+
+                parentWindow.addEventListener("afterprint", cleanupPrintTheme, { once: true });
+
+                parentWindow.requestAnimationFrame(function () {
+                    parentWindow.requestAnimationFrame(function () {
+                        parentWindow.print();
+                    });
+                });
             });
         </script>
         """,
