@@ -18,7 +18,7 @@ from app.presentation.streamlit.views.search_view import render_search_page
 
 
 def _hide_streamlit_toolbar() -> None:
-    """Hide Streamlit chrome and define a report-friendly print layout."""
+    """Hide Streamlit chrome and define a theme-aware print layout."""
     st.markdown(
         """
         <style>
@@ -45,6 +45,10 @@ def _hide_streamlit_toolbar() -> None:
         }
 
         @media print {
+            :root {
+                color-scheme: light dark;
+            }
+
             html,
             body,
             .stApp,
@@ -55,8 +59,8 @@ def _hide_streamlit_toolbar() -> None:
                 max-width: none !important;
                 height: auto !important;
                 overflow: visible !important;
-                background: #ffffff !important;
-                color: #111827 !important;
+                background-color: var(--background-color) !important;
+                color: var(--text-color) !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
@@ -89,21 +93,21 @@ def _hide_streamlit_toolbar() -> None:
                 font-size: 20pt !important;
                 line-height: 1.15 !important;
                 margin: 0 0 5mm !important;
-                color: #111827 !important;
+                color: var(--text-color) !important;
             }
 
             h2 {
                 font-size: 15pt !important;
                 line-height: 1.2 !important;
                 margin: 5mm 0 3mm !important;
-                color: #111827 !important;
+                color: var(--text-color) !important;
             }
 
             h3 {
                 font-size: 12pt !important;
                 line-height: 1.25 !important;
                 margin: 4mm 0 2mm !important;
-                color: #111827 !important;
+                color: var(--text-color) !important;
             }
 
             p,
@@ -112,7 +116,7 @@ def _hide_streamlit_toolbar() -> None:
             [data-testid="stMarkdownContainer"] {
                 font-size: 9.5pt !important;
                 line-height: 1.4 !important;
-                color: #111827 !important;
+                color: var(--text-color) !important;
             }
 
             [data-testid="stMetric"],
@@ -129,10 +133,13 @@ def _hide_streamlit_toolbar() -> None:
                 page-break-inside: avoid !important;
             }
 
-            [data-testid="stVerticalBlockBorderWrapper"] {
-                border: 1px solid #d1d5db !important;
+            [data-testid="stMetric"],
+            [data-testid="stVerticalBlockBorderWrapper"],
+            details {
+                border-color: rgba(127, 127, 127, 0.38) !important;
                 box-shadow: none !important;
-                background: #ffffff !important;
+                background-color: var(--secondary-background-color) !important;
+                color: var(--text-color) !important;
             }
 
             [data-testid="stDataFrame"],
@@ -142,6 +149,8 @@ def _hide_streamlit_toolbar() -> None:
                 max-width: 100% !important;
                 overflow: visible !important;
                 font-size: 8.5pt !important;
+                color: var(--text-color) !important;
+                background-color: var(--background-color) !important;
             }
 
             img,
@@ -152,12 +161,12 @@ def _hide_streamlit_toolbar() -> None:
             }
 
             a {
-                color: #111827 !important;
+                color: var(--primary-color) !important;
                 text-decoration: none !important;
             }
 
             hr {
-                border-color: #d1d5db !important;
+                border-color: rgba(127, 127, 127, 0.38) !important;
             }
         }
         </style>
