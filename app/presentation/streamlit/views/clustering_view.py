@@ -7,6 +7,7 @@ import streamlit as st
 
 from app.infrastructure.clustering.clusterer import DocumentClusterer
 from app.infrastructure.datasets.dataset_registry import SUPPORTED_DATASETS
+from app.infrastructure.evaluation.evaluator_v2 import RetrievalEvaluatorV2
 
 
 @st.cache_resource(show_spinner=False)
@@ -16,11 +17,11 @@ def _clusterer(embedding_model_name: str) -> DocumentClusterer:
 
 
 def render_clustering_page() -> None:
-    """Render document clustering with quantitative and visual evaluation."""
+    """Render document clustering and its retrieval impact comparison."""
     st.header("Document Clustering")
     st.caption(
-        "Cluster a development subset using dense embeddings and evaluate the "
-        "result with internal clustering metrics."
+        "Cluster a development subset using dense embeddings, evaluate the clusters, "
+        "and compare search quality before and after cluster-aware reranking."
     )
 
     dataset_name = st.selectbox(
@@ -42,8 +43,8 @@ def render_clustering_page() -> None:
         value=1000,
         step=100,
         help=(
-            "Clustering is an independent development-subset experiment. "
-            "Larger values need more CPU time and memory."
+            "Clustering and the before/after comparison use the exact same "
+            "development subset."
         ),
     )
     sample_size = st.slider(
@@ -58,6 +59,13 @@ def render_clustering_page() -> None:
         key="clustering_embedding_model",
     )
 
+    _render_retrieval_impact_comparison(
+        dataset_name=dataset_name,
+        max_docs=int(max_docs),
+        number_of_clusters=number_of_clusters,
+        embedding_model=embedding_model,
+    )
+
     if not st.button("Run Clustering", type="primary", use_container_width=True):
         return
 
@@ -69,13 +77,14 @@ def render_clustering_page() -> None:
             number_of_clusters=number_of_clusters,
             max_docs=int(max_docs),
             sample_size=sample_size,
+            persist_artifacts=True,
         )
 
     if not result["documents_count"]:
         st.warning("No documents were available for clustering.")
         return
 
-    st.success("Clustering completed.")
+    st.success("Clustering completed and retrieval artifacts were saved.")
     st.write(
         {
             "dataset_name": result["dataset_name"],
@@ -83,12 +92,138 @@ def render_clustering_page() -> None:
             "number_of_clusters": result["number_of_clusters"],
             "embedding_model": result["embedding_model"],
             "clustering_algorithm": result["clustering_algorithm"],
+            "artifacts_path": result.get("artifacts_path"),
         }
     )
 
     _render_evaluation(result)
     _render_cluster_charts(result)
     _render_cluster_details(result)
+
+
+def _render_retrieval_impact_comparison(
+    *,
+    dataset_name: str,
+    max_docs: int,
+    number_of_clusters: int,
+    embedding_model: str,
+) -> None:
+    """Compare benchmark retrieval before and after clustering."""
+    st.subheader("Retrieval Before / After Clustering")
+    st.caption(
+        "Before uses the normal Embedding retriever. After retrieves the same "
+        "embedding candidates and reranks them using query-to-cluster similarity."
+    )
+
+    with st.form("clustering_retrieval_comparison"):
+        columns = st.columns(3)
+        max_queries = int(
+            columns[0].number_input(
+                "Evaluation queries",
+                min_value=1,
+                max_value=1000,
+                value=100,
+                step=10,
+            )
+        )
+        cluster_weight = float(
+            columns[1].slider(
+                "Cluster weight",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.2,
+                step=0.05,
+                help="The remaining weight is assigned to the base embedding score.",
+            )
+        )
+        candidate_k = int(
+            columns[2].number_input(
+                "Candidates to rerank",
+                min_value=10,
+                max_value=1000,
+                value=100,
+                step=10,
+            )
+        )
+        submitted = st.form_submit_button(
+            "Compare Before vs After",
+            type="primary",
+            use_container_width=True,
+        )
+
+    if not submitted:
+        return
+
+    evaluator = RetrievalEvaluatorV2(
+        max_docs=max_docs,
+        top_k=10,
+        max_queries=max_queries,
+        embedding_model=embedding_model,
+        cluster_count=number_of_clusters,
+        cluster_weight=cluster_weight,
+        cluster_candidate_k=candidate_k,
+    )
+
+    try:
+        with st.spinner(
+            "Evaluating the same queries before and after clustering..."
+        ):
+            before = evaluator.evaluate(dataset_name, "embedding")
+            after = evaluator.evaluate(dataset_name, "embedding_clustered")
+    except (RuntimeError, ValueError, OSError) as exc:
+        st.error(str(exc))
+        return
+
+    frame = pd.DataFrame(
+        [
+            _evaluation_row("Before clustering", before),
+            _evaluation_row("After clustering", after),
+        ]
+    ).set_index("Condition")
+    st.dataframe(frame, use_container_width=True)
+
+    deltas = {
+        "MAP@10": after.map_score - before.map_score,
+        "Recall@10": after.recall - before.recall,
+        "Precision@10": after.precision_at_10 - before.precision_at_10,
+        "nDCG@10": after.ndcg - before.ndcg,
+        "Average time (ms)": (
+            after.average_query_time_ms - before.average_query_time_ms
+        ),
+    }
+    metric_columns = st.columns(5)
+    for column, (label, delta) in zip(
+        metric_columns,
+        deltas.items(),
+        strict=True,
+    ):
+        column.metric(label, f"{frame.iloc[1][label]:.4f}", delta=f"{delta:+.4f}")
+
+    st.caption(
+        "Positive quality deltas mean clustering improved the metric. "
+        "A positive time delta means the cluster-aware search is slower."
+    )
+    st.download_button(
+        "Download comparison CSV",
+        data=frame.reset_index().to_csv(index=False).encode("utf-8"),
+        file_name=(
+            f"{dataset_name}_clustering_comparison_dev_{max_docs}.csv"
+        ),
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+
+def _evaluation_row(condition: str, result) -> dict[str, object]:
+    return {
+        "Condition": condition,
+        "MAP@10": result.map_score,
+        "Recall@10": result.recall,
+        "Precision@10": result.precision_at_10,
+        "nDCG@10": result.ndcg,
+        "Average time (ms)": result.average_query_time_ms,
+        "Queries": result.evaluated_queries,
+    }
 
 
 def _render_evaluation(result: dict[str, object]) -> None:
