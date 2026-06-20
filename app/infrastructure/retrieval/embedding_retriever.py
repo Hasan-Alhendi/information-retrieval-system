@@ -94,6 +94,10 @@ class EmbeddingRetriever:
         """Return full dense-index progress for CLI diagnostics."""
         return self._full_vector_store(dataset_name).status()
 
+    def encode_query(self, query: str) -> np.ndarray:
+        """Encode one query with the same normalized model used by the index."""
+        return self._encode([query], show_progress=False)[0]
+
     def _search_full(
         self,
         query: str,
@@ -103,7 +107,7 @@ class EmbeddingRetriever:
         self.ensure_ready(dataset_name)
         vector_store = self._full_vector_store(dataset_name)
         start = time.perf_counter()
-        query_vector = self._encode([query], show_progress=False)[0]
+        query_vector = self.encode_query(query)
         matches = vector_store.search(query_vector=query_vector, top_k=top_k)
         records = vector_store.load_records([row_index for row_index, _ in matches])
         elapsed_ms = (time.perf_counter() - start) * 1000.0
@@ -144,7 +148,7 @@ class EmbeddingRetriever:
         vector_store = self._development_vector_store(dataset_name, self._max_docs)
         doc_ids, documents = vector_store.load_metadata()
 
-        query_vector = self._encode([query], show_progress=False)[0]
+        query_vector = self.encode_query(query)
         matches = vector_store.search(query_vector=query_vector, top_k=top_k)
 
         results: list[SearchResult] = []
