@@ -119,12 +119,12 @@ class ClusterAwareRetriever:
         base_weight = 1.0 - self.cluster_weight
         for candidate in candidates:
             cluster_id = artifacts.doc_to_cluster.get(candidate.doc_id)
-            cluster_score = (
+            cluster_score = float(
                 centroid_scores[cluster_id]
                 if cluster_id is not None and 0 <= cluster_id < len(centroid_scores)
                 else 0.0
             )
-            final_score = (
+            final_score = float(
                 base_weight * base_scores.get(candidate.doc_id, 0.0)
                 + self.cluster_weight * cluster_score
             )
