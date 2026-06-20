@@ -18,6 +18,7 @@ from app.infrastructure.evaluation.metrics import (
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
 from app.infrastructure.retrieval.cluster_aware_retriever import ClusterAwareRetriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
+from app.infrastructure.retrieval.guided_category_retriever import GuidedCategoryRetriever
 from app.infrastructure.retrieval.hybrid_parallel import HybridParallelRetriever
 from app.infrastructure.retrieval.hybrid_serial import HybridSerialRetriever
 from app.infrastructure.retrieval.tfidf_retriever import TFIDFRetriever
@@ -41,6 +42,9 @@ class RetrievalEvaluator:
         cluster_count: int = 5,
         cluster_weight: float = 0.2,
         cluster_candidate_k: int = 100,
+        category_weight: float = 0.25,
+        category_candidate_k: int = 100,
+        top_categories: int = 3,
     ) -> None:
         self._dataset_loader = dataset_loader or DatasetLoader()
         self.max_docs = max_docs
@@ -53,6 +57,9 @@ class RetrievalEvaluator:
         self.cluster_count = cluster_count
         self.cluster_weight = cluster_weight
         self.cluster_candidate_k = cluster_candidate_k
+        self.category_weight = category_weight
+        self.category_candidate_k = category_candidate_k
+        self.top_categories = top_categories
         self._query_refinement_service = QueryRefinementService()
 
     def evaluate(self, dataset_name: str, model_name: str) -> EvaluationResult:
@@ -156,6 +163,17 @@ class RetrievalEvaluator:
                 number_of_clusters=self.cluster_count,
                 cluster_weight=self.cluster_weight,
                 candidate_k=self.cluster_candidate_k,
+            )
+        if model_name == "embedding_guided_categories":
+            embedding = EmbeddingRetriever(
+                embedding_model_name=self.embedding_model,
+                max_docs=self.max_docs,
+            )
+            return GuidedCategoryRetriever(
+                embedding_retriever=embedding,
+                category_weight=self.category_weight,
+                candidate_k=self.category_candidate_k,
+                top_categories=self.top_categories,
             )
         if model_name == "hybrid_serial":
             return HybridSerialRetriever(
