@@ -26,7 +26,7 @@ class HybridSerialRetriever:
     ) -> None:
         self._bm25 = bm25_retriever or BM25Retriever(max_docs=max_docs)
         self._embedding = embedding_retriever or EmbeddingRetriever(max_docs=max_docs)
-        self._scorer = DenseCandidateScorer(self._embedding.embedding_model_name)
+        self.scorer = DenseCandidateScorer(self._embedding.embedding_model_name)
         self._max_docs = max_docs
         self.candidate_k = candidate_k
         self.bm25_weight = bm25_weight
@@ -47,7 +47,7 @@ class HybridSerialRetriever:
         self._bm25.ensure_ready(dataset_name)
         self._embedding.ensure_ready(dataset_name)
         if self._max_docs is None:
-            self._scorer.prepare(dataset_name)
+            self.scorer.prepare(dataset_name)
 
     def search(
         self,
@@ -67,7 +67,7 @@ class HybridSerialRetriever:
             return []
 
         if self._max_docs is None:
-            dense_scores = self._scorer.score(
+            dense_scores = self.scorer.score(
                 query,
                 dataset_name,
                 [item.doc_id for item in candidates],
