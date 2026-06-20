@@ -22,6 +22,9 @@ class FakeEmbeddingRetriever:
     def ensure_ready(self, dataset_name: str) -> None:
         del dataset_name
 
+    def prepare(self, dataset_name: str) -> None:
+        del dataset_name
+
     def encode_query(self, query: str) -> np.ndarray:
         del query
         return np.asarray([1.0, 0.0], dtype="float32")
