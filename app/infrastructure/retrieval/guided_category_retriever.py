@@ -48,12 +48,9 @@ class GuidedCategoryRetriever:
         force: bool = False,
         max_docs: int | None = None,
     ) -> None:
-        """Reuse the normal embedding index; no separate document index is built."""
-        self._embedding.build(
-            dataset_name=dataset_name,
-            force=force,
-            max_docs=max_docs,
-        )
+        """Require and reuse the existing embedding index without rebuilding it."""
+        del force, max_docs
+        self._embedding.ensure_ready(dataset_name)
 
     def prepare(self, dataset_name: str) -> None:
         """Warm the model and encode each dataset's category list only once."""
