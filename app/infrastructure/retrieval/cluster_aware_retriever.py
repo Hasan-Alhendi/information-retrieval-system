@@ -81,6 +81,8 @@ class ClusterAwareRetriever:
 
     def prepare(self, dataset_name: str) -> None:
         """Ensure the embedding index and clustering artifacts are ready."""
+        if dataset_name in self._artifacts:
+            return
         self._embedding.prepare(dataset_name)
         store = self._store(dataset_name)
         if not store.exists():
