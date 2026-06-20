@@ -103,6 +103,35 @@ class EmbeddingRetriever:
         """Encode one query with the same normalized model used by the index."""
         return self._encode([query], show_progress=False)[0]
 
+    def encode_texts(self, texts: list[str]) -> np.ndarray:
+        """Encode category descriptions with the same model used by the index."""
+        if not texts:
+            return np.empty((0, 0), dtype="float32")
+        return self._encode(texts, show_progress=False)
+
+    def load_candidate_vectors(
+        self,
+        dataset_name: str,
+        row_indexes: list[int],
+    ) -> np.ndarray:
+        """Reconstruct candidate vectors from the existing FAISS index."""
+        if not row_indexes:
+            return np.empty((0, 0), dtype="float32")
+
+        if self._uses_full_store(dataset_name, self._max_docs):
+            index = self._full_vector_store(dataset_name).load_index()
+        else:
+            index = self._development_vector_store(
+                dataset_name,
+                self._max_docs,
+            ).load_index()
+
+        vectors = [
+            np.asarray(index.reconstruct(int(row_index)), dtype="float32")
+            for row_index in row_indexes
+        ]
+        return np.vstack(vectors)
+
     def _search_full(
         self,
         query: str,
@@ -137,6 +166,7 @@ class EmbeddingRetriever:
                         "model": self.model_name,
                         "embedding_model": self.embedding_model_name,
                         "storage": "incremental_faiss_full",
+                        "row_index": row_index,
                         "query_time_ms": round(elapsed_ms, 3),
                     },
                 )
@@ -170,6 +200,7 @@ class EmbeddingRetriever:
                         "model": self.model_name,
                         "embedding_model": self.embedding_model_name,
                         "storage": "faiss_development",
+                        "row_index": row_index,
                     },
                 )
             )
