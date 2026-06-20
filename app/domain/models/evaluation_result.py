@@ -14,3 +14,4 @@ class EvaluationResult:
     precision_at_10: float
     ndcg: float
     evaluated_queries: int
+    average_query_time_ms: float = 0.0
