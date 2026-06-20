@@ -1,6 +1,7 @@
 """Retrieval evaluator implementation."""
 
 from collections.abc import Callable
+import time
 from typing import Any
 
 from app.application.services.query_refinement_service import QueryRefinementService
@@ -15,6 +16,7 @@ from app.infrastructure.evaluation.metrics import (
     recall_at_k,
 )
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
+from app.infrastructure.retrieval.cluster_aware_retriever import ClusterAwareRetriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
 from app.infrastructure.retrieval.hybrid_parallel import HybridParallelRetriever
 from app.infrastructure.retrieval.hybrid_serial import HybridSerialRetriever
@@ -36,6 +38,9 @@ class RetrievalEvaluator:
         bm25_b: float = 0.75,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         use_query_refinement: bool = False,
+        cluster_count: int = 5,
+        cluster_weight: float = 0.2,
+        cluster_candidate_k: int = 100,
     ) -> None:
         self._dataset_loader = dataset_loader or DatasetLoader()
         self.max_docs = max_docs
@@ -45,6 +50,9 @@ class RetrievalEvaluator:
         self.bm25_b = bm25_b
         self.embedding_model = embedding_model
         self.use_query_refinement = use_query_refinement
+        self.cluster_count = cluster_count
+        self.cluster_weight = cluster_weight
+        self.cluster_candidate_k = cluster_candidate_k
         self._query_refinement_service = QueryRefinementService()
 
     def evaluate(self, dataset_name: str, model_name: str) -> EvaluationResult:
@@ -74,18 +82,33 @@ class RetrievalEvaluator:
                 precision_at_10=0.0,
                 ndcg=0.0,
                 evaluated_queries=0,
+                average_query_time_ms=0.0,
             )
 
         map_scores: list[float] = []
         recall_scores: list[float] = []
         precision_scores: list[float] = []
         ndcg_scores: list[float] = []
+        query_times_ms: list[float] = []
 
         for query_id, query_text in query_items:
             relevance_scores = {doc_id: float(score) for doc_id, score in qrels[query_id].items()}
             relevant_docs = {doc_id for doc_id, score in relevance_scores.items() if score > 0}
             active_query = self._prepare_query(query_text)
-            results = retriever.search(query=active_query, dataset_name=dataset_name, top_k=self.top_k)
+
+            started = time.perf_counter()
+            results = retriever.search(
+                query=active_query,
+                dataset_name=dataset_name,
+                top_k=self.top_k,
+            )
+            wall_time_ms = (time.perf_counter() - started) * 1000.0
+            internal_time_ms = (
+                float(results[0].metadata.get("query_time_ms", wall_time_ms))
+                if results
+                else wall_time_ms
+            )
+            query_times_ms.append(internal_time_ms)
             retrieved_doc_ids = [result.doc_id for result in results]
 
             map_scores.append(average_precision(retrieved_doc_ids, relevant_docs))
@@ -102,6 +125,7 @@ class RetrievalEvaluator:
             precision_at_10=_mean(precision_scores),
             ndcg=_mean(ndcg_scores),
             evaluated_queries=evaluated_queries,
+            average_query_time_ms=_mean(query_times_ms),
         )
 
     def _prepare_query(self, query_text: str) -> str:
@@ -118,6 +142,18 @@ class RetrievalEvaluator:
             return EmbeddingRetriever(
                 embedding_model_name=self.embedding_model,
                 max_docs=self.max_docs,
+            )
+        if model_name == "embedding_clustered":
+            embedding = EmbeddingRetriever(
+                embedding_model_name=self.embedding_model,
+                max_docs=self.max_docs,
+            )
+            return ClusterAwareRetriever(
+                embedding_retriever=embedding,
+                max_docs=self.max_docs,
+                number_of_clusters=self.cluster_count,
+                cluster_weight=self.cluster_weight,
+                candidate_k=self.cluster_candidate_k,
             )
         if model_name == "hybrid_serial":
             return HybridSerialRetriever(
