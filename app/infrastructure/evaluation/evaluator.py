@@ -68,6 +68,8 @@ class RetrievalEvaluator:
 
         retriever = self._create_retriever(model_name)
         retriever.build(dataset_name=dataset_name, force=False, max_docs=self.max_docs)
+        if hasattr(retriever, "prepare"):
+            retriever.prepare(dataset_name)
 
         query_items = [(query_id, queries[query_id]) for query_id in qrels if query_id in queries]
         if self.max_queries is not None:
