@@ -19,6 +19,7 @@ SUPPORTED_RETRIEVAL_MODELS = (
     "bm25",
     "embedding",
     "embedding_clustered",
+    "embedding_guided_categories",
     "hybrid_serial",
     "hybrid_parallel",
 )
