@@ -8,11 +8,12 @@ from app.application.services.retriever_factory import (
 )
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
 from app.infrastructure.retrieval.cluster_aware_retriever import ClusterAwareRetriever
+from app.infrastructure.retrieval.guided_category_retriever import GuidedCategoryRetriever
 from app.infrastructure.retrieval.hybrid_serial import HybridSerialRetriever
 from app.infrastructure.retrieval.rrf_retriever import ReciprocalRankFusionRetriever
 
 
-def test_factory_exposes_baselines_and_cluster_aware_model() -> None:
+def test_factory_exposes_baselines_and_category_models() -> None:
     assert SUPPORTED_MODELS == (
         "tfidf",
         "bm25",
@@ -20,6 +21,7 @@ def test_factory_exposes_baselines_and_cluster_aware_model() -> None:
         "hybrid_serial",
         "hybrid_parallel",
         "embedding_clustered",
+        "embedding_guided_categories",
     )
 
 
@@ -44,6 +46,21 @@ def test_factory_creates_cluster_aware_embedding_for_development_subset() -> Non
     assert retriever.number_of_clusters == 7
     assert retriever.cluster_weight == 0.25
     assert retriever.candidate_k == 80
+
+
+def test_factory_creates_guided_categories_for_full_or_development_index() -> None:
+    retriever = create_retriever(
+        "embedding_guided_categories",
+        max_docs=None,
+        category_weight=0.35,
+        category_candidate_k=200,
+        top_categories=2,
+    )
+
+    assert isinstance(retriever, GuidedCategoryRetriever)
+    assert retriever.category_weight == 0.35
+    assert retriever.candidate_k == 200
+    assert retriever.top_categories == 2
 
 
 def test_factory_rejects_cluster_aware_full_corpus_mode() -> None:
