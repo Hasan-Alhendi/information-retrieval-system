@@ -94,6 +94,11 @@ class EmbeddingRetriever:
         """Return full dense-index progress for CLI diagnostics."""
         return self._full_vector_store(dataset_name).status()
 
+    def prepare(self, dataset_name: str) -> None:
+        """Load the selected index and warm the embedding model."""
+        self.ensure_ready(dataset_name)
+        self.encode_query("initialization")
+
     def encode_query(self, query: str) -> np.ndarray:
         """Encode one query with the same normalized model used by the index."""
         return self._encode([query], show_progress=False)[0]
