@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
-from app.infrastructure.retrieval.hybrid_serial_v2 import HybridSerialRetrieverV2
+from app.infrastructure.retrieval.hybrid_serial import HybridSerialRetriever
 from app.infrastructure.retrieval.rrf_retriever import ReciprocalRankFusionRetriever
 from app.infrastructure.retrieval.tfidf_retriever import TFIDFRetriever
 
@@ -46,7 +46,7 @@ def create_retriever(
     )
 
     if model_name == "hybrid_serial":
-        return HybridSerialRetrieverV2(
+        return HybridSerialRetriever(
             bm25_retriever=bm25,
             embedding_retriever=embedding,
             max_docs=max_docs,
