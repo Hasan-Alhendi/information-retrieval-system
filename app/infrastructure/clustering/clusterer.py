@@ -12,6 +12,7 @@ from sklearn.decomposition import PCA
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.metrics import davies_bouldin_score, silhouette_score
 
+from app.infrastructure.clustering.cluster_store import ClusterArtifactStore
 from app.infrastructure.datasets.dataset_loader import DatasetLoader
 
 DEFAULT_CLUSTERING_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -41,6 +42,7 @@ class DocumentClusterer:
         number_of_clusters: int = 10,
         max_docs: int | None = 1000,
         sample_size: int = 5,
+        persist_artifacts: bool = False,
     ) -> dict[str, Any]:
         """Cluster documents and return summaries, metrics, and PCA points."""
         doc_ids, documents, _, _ = self._dataset_loader.prepare_dataset(
@@ -62,9 +64,15 @@ class DocumentClusterer:
                 },
                 "projection": [],
                 "clusters": [],
+                "artifacts_path": None,
             }
 
         cluster_count = max(1, min(number_of_clusters, len(documents)))
+        if persist_artifacts and cluster_count != number_of_clusters:
+            raise ValueError(
+                "The requested number of clusters must not exceed the available documents."
+            )
+
         embeddings = self._encode(documents)
         kmeans = MiniBatchKMeans(
             n_clusters=cluster_count,
@@ -73,6 +81,19 @@ class DocumentClusterer:
             batch_size=min(self.clustering_batch_size, len(documents)),
         )
         labels = kmeans.fit_predict(embeddings)
+
+        artifact_path = None
+        if persist_artifacts:
+            artifact_path = ClusterArtifactStore(
+                dataset_name=dataset_name,
+                embedding_model_name=self.embedding_model_name,
+                max_docs=max_docs,
+                number_of_clusters=cluster_count,
+            ).save(
+                doc_ids=doc_ids,
+                labels=labels,
+                centroids=kmeans.cluster_centers_,
+            )
 
         grouped_indexes: dict[int, list[int]] = defaultdict(list)
         for index, label in enumerate(labels):
@@ -116,6 +137,7 @@ class DocumentClusterer:
                 doc_ids=doc_ids,
             ),
             "clusters": clusters,
+            "artifacts_path": None if artifact_path is None else str(artifact_path),
         }
 
     def _encode(self, texts: list[str]) -> np.ndarray:
