@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Use a development subset. Required for embedding_clustered; omit for "
-            "full-corpus evaluation of the baseline models."
+            "full-corpus evaluation of baseline and guided-category models."
         ),
     )
     parser.add_argument("--max-queries", type=int, default=None)
@@ -41,6 +41,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clusters", type=int, default=5)
     parser.add_argument("--cluster-weight", type=float, default=0.2)
     parser.add_argument("--cluster-candidate-k", type=int, default=100)
+    parser.add_argument("--category-weight", type=float, default=0.25)
+    parser.add_argument("--category-candidate-k", type=int, default=100)
+    parser.add_argument("--top-categories", type=int, default=3)
     parser.add_argument(
         "--embedding-model",
         default="sentence-transformers/all-MiniLM-L6-v2",
@@ -63,6 +66,9 @@ def main() -> None:
         cluster_count=args.clusters,
         cluster_weight=args.cluster_weight,
         cluster_candidate_k=args.cluster_candidate_k,
+        category_weight=args.category_weight,
+        category_candidate_k=args.category_candidate_k,
+        top_categories=args.top_categories,
     )
 
     rows: list[dict[str, object]] = []
