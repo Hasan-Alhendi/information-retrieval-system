@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app.infrastructure.clustering.category_profiles import get_category_profiles
 from app.infrastructure.clustering.clusterer import DocumentClusterer
 from app.infrastructure.datasets.dataset_registry import SUPPORTED_DATASETS
 from app.infrastructure.evaluation.evaluator_v2 import RetrievalEvaluatorV2
@@ -20,8 +21,8 @@ def render_clustering_page() -> None:
     """Render document clustering and its retrieval impact comparison."""
     st.header("Document Clustering")
     st.caption(
-        "Cluster a development subset using dense embeddings, evaluate the clusters, "
-        "and compare search quality before and after cluster-aware reranking."
+        "Compare normal embedding search, automatic KMeans clustering, and guided "
+        "semantic categories on the same queries and relevance judgments."
     )
 
     dataset_name = st.selectbox(
@@ -31,7 +32,7 @@ def render_clustering_page() -> None:
         key="clustering_dataset",
     )
     number_of_clusters = st.slider(
-        "Number of clusters",
+        "Number of automatic clusters",
         min_value=2,
         max_value=20,
         value=5,
@@ -43,12 +44,12 @@ def render_clustering_page() -> None:
         value=1000,
         step=100,
         help=(
-            "Clustering and the before/after comparison use the exact same "
-            "development subset."
+            "All compared systems use the exact same development subset and the "
+            "existing embedding index when it is already available."
         ),
     )
     sample_size = st.slider(
-        "Sample documents per cluster",
+        "Sample documents per automatic cluster",
         min_value=1,
         max_value=10,
         value=3,
@@ -59,6 +60,7 @@ def render_clustering_page() -> None:
         key="clustering_embedding_model",
     )
 
+    _render_guided_categories(dataset_name)
     _render_retrieval_impact_comparison(
         dataset_name=dataset_name,
         max_docs=int(max_docs),
@@ -66,7 +68,7 @@ def render_clustering_page() -> None:
         embedding_model=embedding_model,
     )
 
-    if not st.button("Run Clustering", type="primary", use_container_width=True):
+    if not st.button("Run Automatic Clustering", type="primary", use_container_width=True):
         return
 
     with st.spinner(
@@ -84,7 +86,7 @@ def render_clustering_page() -> None:
         st.warning("No documents were available for clustering.")
         return
 
-    st.success("Clustering completed and retrieval artifacts were saved.")
+    st.success("Automatic clustering completed and artifacts were saved.")
     st.write(
         {
             "dataset_name": result["dataset_name"],
@@ -101,6 +103,30 @@ def render_clustering_page() -> None:
     _render_cluster_details(result)
 
 
+def _render_guided_categories(dataset_name: str) -> None:
+    """Show the manually defined category names used for automatic assignment."""
+    profiles = get_category_profiles(dataset_name)
+    with st.expander("Guided semantic categories", expanded=False):
+        st.caption(
+            "Only category names and descriptions are defined manually. Queries and "
+            "documents are assigned automatically by embedding similarity, and may "
+            "belong softly to several categories."
+        )
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Category": profile.label,
+                        "Description": profile.description,
+                    }
+                    for profile in profiles
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
 def _render_retrieval_impact_comparison(
     *,
     dataset_name: str,
@@ -108,17 +134,17 @@ def _render_retrieval_impact_comparison(
     number_of_clusters: int,
     embedding_model: str,
 ) -> None:
-    """Compare benchmark retrieval before and after clustering."""
-    st.subheader("Retrieval Before / After Clustering")
+    """Compare baseline, automatic clustering, and guided categories."""
+    st.subheader("Retrieval Quality Comparison")
     st.caption(
-        "Before uses the normal Embedding retriever. After retrieves the same "
-        "embedding candidates and reranks them using query-to-cluster similarity."
+        "Guided Categories reuses the existing FAISS candidate vectors. It does not "
+        "rebuild the document index; only the small category descriptions are encoded."
     )
 
     with st.form("clustering_retrieval_comparison"):
-        columns = st.columns(3)
+        first_row = st.columns(3)
         max_queries = int(
-            columns[0].number_input(
+            first_row[0].number_input(
                 "Evaluation queries",
                 min_value=1,
                 max_value=1000,
@@ -126,18 +152,8 @@ def _render_retrieval_impact_comparison(
                 step=10,
             )
         )
-        cluster_weight = float(
-            columns[1].slider(
-                "Cluster weight",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.2,
-                step=0.05,
-                help="The remaining weight is assigned to the base embedding score.",
-            )
-        )
         candidate_k = int(
-            columns[2].number_input(
+            first_row[1].number_input(
                 "Candidates to rerank",
                 min_value=10,
                 max_value=1000,
@@ -145,8 +161,36 @@ def _render_retrieval_impact_comparison(
                 step=10,
             )
         )
+        top_categories = int(
+            first_row[2].slider(
+                "Top query categories",
+                min_value=1,
+                max_value=5,
+                value=3,
+            )
+        )
+
+        second_row = st.columns(2)
+        cluster_weight = float(
+            second_row[0].slider(
+                "Automatic cluster weight",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.2,
+                step=0.05,
+            )
+        )
+        category_weight = float(
+            second_row[1].slider(
+                "Guided category weight",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.25,
+                step=0.05,
+            )
+        )
         submitted = st.form_submit_button(
-            "Compare Before vs After",
+            "Compare Three Methods",
             type="primary",
             use_container_width=True,
         )
@@ -162,52 +206,57 @@ def _render_retrieval_impact_comparison(
         cluster_count=number_of_clusters,
         cluster_weight=cluster_weight,
         cluster_candidate_k=candidate_k,
+        category_weight=category_weight,
+        category_candidate_k=candidate_k,
+        top_categories=top_categories,
     )
 
     try:
         with st.spinner(
-            "Evaluating the same queries before and after clustering..."
+            "Evaluating baseline, automatic clustering, and guided categories..."
         ):
-            before = evaluator.evaluate(dataset_name, "embedding")
-            after = evaluator.evaluate(dataset_name, "embedding_clustered")
+            baseline = evaluator.evaluate(dataset_name, "embedding")
+            automatic = evaluator.evaluate(dataset_name, "embedding_clustered")
+            guided = evaluator.evaluate(
+                dataset_name,
+                "embedding_guided_categories",
+            )
     except (RuntimeError, ValueError, OSError) as exc:
         st.error(str(exc))
         return
 
     frame = pd.DataFrame(
         [
-            _evaluation_row("Before clustering", before),
-            _evaluation_row("After clustering", after),
+            _evaluation_row("Embedding baseline", baseline),
+            _evaluation_row("Automatic KMeans", automatic),
+            _evaluation_row("Guided Categories", guided),
         ]
     ).set_index("Condition")
     st.dataframe(frame, use_container_width=True)
 
-    deltas = {
-        "MAP@10": after.map_score - before.map_score,
-        "Recall@10": after.recall - before.recall,
-        "Precision@10": after.precision_at_10 - before.precision_at_10,
-        "nDCG@10": after.ndcg - before.ndcg,
-        "Average time (ms)": (
-            after.average_query_time_ms - before.average_query_time_ms
-        ),
-    }
-    metric_columns = st.columns(5)
-    for column, (label, delta) in zip(
-        metric_columns,
-        deltas.items(),
-        strict=True,
-    ):
-        column.metric(label, f"{frame.iloc[1][label]:.4f}", delta=f"{delta:+.4f}")
+    delta_frame = pd.DataFrame(
+        [
+            _delta_row("Automatic - Baseline", automatic, baseline),
+            _delta_row("Guided - Baseline", guided, baseline),
+        ]
+    ).set_index("Comparison")
+    st.subheader("Change Relative to Embedding Baseline")
+    st.dataframe(delta_frame, use_container_width=True)
+
+    quality_columns = ["MAP@10", "Recall@10", "Precision@10", "nDCG@10"]
+    st.subheader("Quality Metrics")
+    st.bar_chart(frame[quality_columns])
 
     st.caption(
-        "Positive quality deltas mean clustering improved the metric. "
-        "A positive time delta means the cluster-aware search is slower."
+        "Positive quality deltas indicate an improvement. A positive time delta "
+        "indicates additional latency. Guided categories use soft assignment to the "
+        "best query categories rather than forcing a single hard category."
     )
     st.download_button(
-        "Download comparison CSV",
+        "Download three-method comparison CSV",
         data=frame.reset_index().to_csv(index=False).encode("utf-8"),
         file_name=(
-            f"{dataset_name}_clustering_comparison_dev_{max_docs}.csv"
+            f"{dataset_name}_automatic_vs_guided_categories_dev_{max_docs}.csv"
         ),
         mime="text/csv",
         use_container_width=True,
@@ -223,6 +272,19 @@ def _evaluation_row(condition: str, result) -> dict[str, object]:
         "nDCG@10": result.ndcg,
         "Average time (ms)": result.average_query_time_ms,
         "Queries": result.evaluated_queries,
+    }
+
+
+def _delta_row(comparison: str, result, baseline) -> dict[str, object]:
+    return {
+        "Comparison": comparison,
+        "MAP@10": result.map_score - baseline.map_score,
+        "Recall@10": result.recall - baseline.recall,
+        "Precision@10": result.precision_at_10 - baseline.precision_at_10,
+        "nDCG@10": result.ndcg - baseline.ndcg,
+        "Average time (ms)": (
+            result.average_query_time_ms - baseline.average_query_time_ms
+        ),
     }
 
 
