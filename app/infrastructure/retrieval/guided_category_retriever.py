@@ -40,6 +40,7 @@ class GuidedCategoryRetriever:
         self.top_categories = top_categories
         self._profiles: dict[str, tuple[CategoryProfile, ...]] = {}
         self._category_vectors: dict[str, np.ndarray] = {}
+        self._prepared_datasets: set[str] = set()
 
     def build(
         self,
@@ -55,9 +56,12 @@ class GuidedCategoryRetriever:
         )
 
     def prepare(self, dataset_name: str) -> None:
-        """Warm the embedding model and encode the small category description list."""
+        """Warm the model and encode each dataset's category list only once."""
+        if dataset_name in self._prepared_datasets:
+            return
         self._embedding.prepare(dataset_name)
         self._ensure_categories(dataset_name)
+        self._prepared_datasets.add(dataset_name)
 
     def search(
         self,
