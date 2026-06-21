@@ -7,7 +7,7 @@ This experiment compares normal embedding retrieval with guided semantic categor
 1. **Embedding baseline** — normal semantic retrieval.
 2. **Guided Categories** — human-readable category names are defined once, while query and document assignment is performed automatically using embedding similarity.
 
-Automatic KMeans clustering was removed from the retrieval pipeline because evaluation showed no measurable quality improvement while adding latency.
+Automatic KMeans clustering was removed from the project because evaluation showed no measurable quality improvement while adding latency. The project now keeps only Guided Categories as the additional category-based retrieval experiment.
 
 The guided method does not manually label every document. It selects the best categories for each query, assigns candidate documents softly to those categories, and mixes category alignment with the original embedding score.
 
