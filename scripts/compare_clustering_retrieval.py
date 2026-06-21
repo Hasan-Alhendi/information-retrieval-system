@@ -1,4 +1,4 @@
-"""Compare embedding, automatic clustering, and guided semantic categories."""
+"""Compare embedding retrieval with guided semantic category reranking."""
 
 from __future__ import annotations
 
@@ -17,17 +17,12 @@ from app.infrastructure.evaluation.evaluator_v2 import RetrievalEvaluatorV2
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Compare normal embedding retrieval, automatic KMeans clustering, "
-            "and guided semantic category reranking."
-        )
+        description="Compare normal embedding retrieval with guided category reranking."
     )
     parser.add_argument("--dataset", default="quora")
     parser.add_argument("--max-docs", type=int, default=1000)
     parser.add_argument("--max-queries", type=int, default=100)
     parser.add_argument("--top-k", type=int, default=10)
-    parser.add_argument("--clusters", type=int, default=5)
-    parser.add_argument("--cluster-weight", type=float, default=0.2)
     parser.add_argument("--category-weight", type=float, default=0.25)
     parser.add_argument("--top-categories", type=int, default=3)
     parser.add_argument("--candidate-k", type=int, default=100)
@@ -47,27 +42,16 @@ def main() -> None:
         top_k=args.top_k,
         max_queries=args.max_queries,
         embedding_model=args.embedding_model,
-        cluster_count=args.clusters,
-        cluster_weight=args.cluster_weight,
-        cluster_candidate_k=args.candidate_k,
         category_weight=args.category_weight,
         category_candidate_k=args.candidate_k,
         top_categories=args.top_categories,
     )
 
     baseline = evaluator.evaluate(args.dataset, "embedding")
-    automatic = evaluator.evaluate(args.dataset, "embedding_clustered")
     guided = evaluator.evaluate(args.dataset, "embedding_guided_categories")
 
     baseline_row = _row("embedding_baseline", baseline, args)
-    automatic_row = _row("automatic_kmeans", automatic, args)
     guided_row = _row("guided_categories", guided, args)
-    automatic_delta = _delta_row(
-        "automatic_minus_baseline",
-        automatic,
-        baseline,
-        args,
-    )
     guided_delta = _delta_row(
         "guided_minus_baseline",
         guided,
@@ -75,16 +59,10 @@ def main() -> None:
         args,
     )
 
-    rows = [
-        baseline_row,
-        automatic_row,
-        guided_row,
-        automatic_delta,
-        guided_delta,
-    ]
+    rows = [baseline_row, guided_row, guided_delta]
     EVALUATION_DIR.mkdir(parents=True, exist_ok=True)
     output_path = EVALUATION_DIR / (
-        f"{args.dataset}_automatic_vs_guided_dev_{args.max_docs}.csv"
+        f"{args.dataset}_guided_categories_dev_{args.max_docs}.csv"
     )
     with output_path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=list(baseline_row))
@@ -92,9 +70,7 @@ def main() -> None:
         writer.writerows(rows)
 
     _print_result("Embedding baseline", baseline, args.top_k)
-    _print_result("Automatic KMeans", automatic, args.top_k)
     _print_result("Guided Categories", guided, args.top_k)
-    _print_delta("Automatic - baseline", automatic_delta)
     _print_delta("Guided - baseline", guided_delta)
     print(f"Saved comparison to: {output_path}")
 
@@ -106,8 +82,6 @@ def _row(condition: str, result, args: argparse.Namespace) -> dict[str, object]:
         "dataset_name": result.dataset_name,
         "index_scope": f"development_{args.max_docs}",
         "top_k": args.top_k,
-        "number_of_clusters": args.clusters,
-        "cluster_weight": args.cluster_weight,
         "category_weight": args.category_weight,
         "top_categories": args.top_categories,
         "candidate_k": args.candidate_k,
@@ -164,14 +138,10 @@ def _print_delta(label: str, row: dict[str, object]) -> None:
 def _validate_args(args: argparse.Namespace) -> None:
     if args.max_docs < 2:
         raise ValueError("max-docs must be at least 2.")
-    if args.clusters < 2 or args.clusters >= args.max_docs:
-        raise ValueError("clusters must be at least 2 and smaller than max-docs.")
     if args.top_categories < 1:
         raise ValueError("top-categories must be positive.")
     if args.candidate_k < args.top_k:
         raise ValueError("candidate-k must be greater than or equal to top-k.")
-    if not 0.0 <= args.cluster_weight <= 1.0:
-        raise ValueError("cluster-weight must be between 0 and 1.")
     if not 0.0 <= args.category_weight <= 1.0:
         raise ValueError("category-weight must be between 0 and 1.")
 
