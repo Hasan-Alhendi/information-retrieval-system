@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
-from app.infrastructure.retrieval.cluster_aware_retriever import ClusterAwareRetriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
 from app.infrastructure.retrieval.guided_category_retriever import GuidedCategoryRetriever
 from app.infrastructure.retrieval.hybrid_serial import HybridSerialRetriever
@@ -17,10 +16,7 @@ BASELINE_MODELS = (
     "hybrid_serial",
     "hybrid_parallel",
 )
-SUPPORTED_MODELS = BASELINE_MODELS + (
-    "embedding_clustered",
-    "embedding_guided_categories",
-)
+SUPPORTED_MODELS = BASELINE_MODELS + ("embedding_guided_categories",)
 
 
 def create_retriever(
@@ -30,9 +26,6 @@ def create_retriever(
     bm25_k1: float = 1.5,
     bm25_b: float = 0.75,
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    cluster_count: int = 5,
-    cluster_weight: float = 0.2,
-    cluster_candidate_k: int = 100,
     category_weight: float = 0.25,
     category_candidate_k: int = 100,
     top_categories: int = 3,
@@ -50,14 +43,6 @@ def create_retriever(
     )
     if model_name == "embedding":
         return embedding
-    if model_name == "embedding_clustered":
-        return ClusterAwareRetriever(
-            embedding_retriever=embedding,
-            max_docs=max_docs,
-            number_of_clusters=cluster_count,
-            cluster_weight=cluster_weight,
-            candidate_k=cluster_candidate_k,
-        )
     if model_name == "embedding_guided_categories":
         return GuidedCategoryRetriever(
             embedding_retriever=embedding,
