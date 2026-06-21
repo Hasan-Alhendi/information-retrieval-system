@@ -13,7 +13,6 @@ MODEL_LABELS = {
     "bm25": "BM25",
     "tfidf": "TF-IDF",
     "embedding": "Embedding",
-    "embedding_clustered": "Embedding + Automatic Clustering",
     "embedding_guided_categories": "Embedding + Guided Categories",
     "hybrid_serial": "Hybrid Serial",
     "hybrid_parallel": "Hybrid Parallel",
