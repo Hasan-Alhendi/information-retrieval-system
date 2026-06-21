@@ -16,7 +16,6 @@ from app.infrastructure.evaluation.metrics import (
     recall_at_k,
 )
 from app.infrastructure.retrieval.bm25_retriever import BM25Retriever
-from app.infrastructure.retrieval.cluster_aware_retriever import ClusterAwareRetriever
 from app.infrastructure.retrieval.embedding_retriever import EmbeddingRetriever
 from app.infrastructure.retrieval.guided_category_retriever import GuidedCategoryRetriever
 from app.infrastructure.retrieval.hybrid_parallel import HybridParallelRetriever
@@ -39,9 +38,6 @@ class RetrievalEvaluator:
         bm25_b: float = 0.75,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         use_query_refinement: bool = False,
-        cluster_count: int = 5,
-        cluster_weight: float = 0.2,
-        cluster_candidate_k: int = 100,
         category_weight: float = 0.25,
         category_candidate_k: int = 100,
         top_categories: int = 3,
@@ -54,9 +50,6 @@ class RetrievalEvaluator:
         self.bm25_b = bm25_b
         self.embedding_model = embedding_model
         self.use_query_refinement = use_query_refinement
-        self.cluster_count = cluster_count
-        self.cluster_weight = cluster_weight
-        self.cluster_candidate_k = cluster_candidate_k
         self.category_weight = category_weight
         self.category_candidate_k = category_candidate_k
         self.top_categories = top_categories
@@ -151,18 +144,6 @@ class RetrievalEvaluator:
             return EmbeddingRetriever(
                 embedding_model_name=self.embedding_model,
                 max_docs=self.max_docs,
-            )
-        if model_name == "embedding_clustered":
-            embedding = EmbeddingRetriever(
-                embedding_model_name=self.embedding_model,
-                max_docs=self.max_docs,
-            )
-            return ClusterAwareRetriever(
-                embedding_retriever=embedding,
-                max_docs=self.max_docs,
-                number_of_clusters=self.cluster_count,
-                cluster_weight=self.cluster_weight,
-                candidate_k=self.cluster_candidate_k,
             )
         if model_name == "embedding_guided_categories":
             embedding = EmbeddingRetriever(
