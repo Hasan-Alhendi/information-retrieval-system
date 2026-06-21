@@ -64,7 +64,7 @@ Do not pass `--max-docs` in this command. The guided retriever requires the exis
 
 ## Streamlit comparison
 
-Open **Guided Semantic Categories**, review the configured categories, then use **Retrieval Quality Comparison**. The page shows:
+Open the guided categories page, review the configured categories, then use **Retrieval Quality Comparison**. The page shows:
 
 - Embedding baseline
 - Guided Categories
