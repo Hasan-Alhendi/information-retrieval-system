@@ -1,12 +1,13 @@
-# Retrieval Comparison with Automatic and Guided Clustering
+# Retrieval Comparison with Guided Categories
 
-This experiment compares three retrieval paths on the same benchmark queries and relevance judgments.
+This experiment compares normal embedding retrieval with guided semantic category reranking on the same benchmark queries and relevance judgments.
 
 ## Compared systems
 
 1. **Embedding baseline** — normal semantic retrieval.
-2. **Automatic KMeans** — global document clustering followed by cluster-aware reranking.
-3. **Guided Categories** — human-readable category names are defined once, while query and document assignment is performed automatically using embedding similarity.
+2. **Guided Categories** — human-readable category names are defined once, while query and document assignment is performed automatically using embedding similarity.
+
+Automatic KMeans clustering was removed from the retrieval pipeline because evaluation showed no measurable quality improvement while adding latency.
 
 The guided method does not manually label every document. It selects the best categories for each query, assigns candidate documents softly to those categories, and mixes category alignment with the original embedding score.
 
@@ -25,7 +26,7 @@ app/infrastructure/clustering/category_profiles.py
 
 `embedding_guided_categories` reuses the existing FAISS index and reconstructs only the vectors of the retrieved candidates. It does not rebuild all document embeddings and does not download the dataset again. Only the small list of category descriptions is encoded at startup.
 
-## Run the three-way comparison
+## Run the development comparison
 
 ```bash
 python scripts/compare_clustering_retrieval.py \
@@ -33,8 +34,6 @@ python scripts/compare_clustering_retrieval.py \
   --max-docs 1000 \
   --max-queries 100 \
   --top-k 10 \
-  --clusters 5 \
-  --cluster-weight 0.2 \
   --category-weight 0.25 \
   --top-categories 3 \
   --candidate-k 100
@@ -43,7 +42,7 @@ python scripts/compare_clustering_retrieval.py \
 The CSV is saved under:
 
 ```text
-storage/evaluation/<dataset>_automatic_vs_guided_dev_<max_docs>.csv
+storage/evaluation/<dataset>_guided_categories_dev_<max_docs>.csv
 ```
 
 ## Evaluate guided categories on an existing full index
@@ -65,10 +64,9 @@ Do not pass `--max-docs` in this command. The guided retriever requires the exis
 
 ## Streamlit comparison
 
-Open **Document Clustering**, review **Guided semantic categories**, then use **Retrieval Quality Comparison**. The page shows:
+Open **Guided Semantic Categories**, review the configured categories, then use **Retrieval Quality Comparison**. The page shows:
 
 - Embedding baseline
-- Automatic KMeans
 - Guided Categories
 - deltas relative to the baseline
 - quality chart
