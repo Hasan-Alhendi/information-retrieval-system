@@ -30,17 +30,14 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "Use a development subset. Required for embedding_clustered; omit for "
-            "full-corpus evaluation of baseline and guided-category models."
+            "Use a development subset. Omit for full-corpus evaluation when a full "
+            "index already exists."
         ),
     )
     parser.add_argument("--max-queries", type=int, default=None)
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--bm25-k1", type=float, default=1.5)
     parser.add_argument("--bm25-b", type=float, default=0.75)
-    parser.add_argument("--clusters", type=int, default=5)
-    parser.add_argument("--cluster-weight", type=float, default=0.2)
-    parser.add_argument("--cluster-candidate-k", type=int, default=100)
     parser.add_argument("--category-weight", type=float, default=0.25)
     parser.add_argument("--category-candidate-k", type=int, default=100)
     parser.add_argument("--top-categories", type=int, default=3)
@@ -53,8 +50,6 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if "embedding_clustered" in args.models and args.max_docs is None:
-        raise ValueError("embedding_clustered requires --max-docs.")
 
     evaluator = RetrievalEvaluatorV2(
         max_docs=args.max_docs,
@@ -63,9 +58,6 @@ def main() -> None:
         bm25_k1=args.bm25_k1,
         bm25_b=args.bm25_b,
         embedding_model=args.embedding_model,
-        cluster_count=args.clusters,
-        cluster_weight=args.cluster_weight,
-        cluster_candidate_k=args.cluster_candidate_k,
         category_weight=args.category_weight,
         category_candidate_k=args.category_candidate_k,
         top_categories=args.top_categories,
