@@ -94,6 +94,44 @@ class EmbeddingRetriever:
         """Return full dense-index progress for CLI diagnostics."""
         return self._full_vector_store(dataset_name).status()
 
+    def prepare(self, dataset_name: str) -> None:
+        """Load the selected index and warm the embedding model."""
+        self.ensure_ready(dataset_name)
+        self.encode_query("initialization")
+
+    def encode_query(self, query: str) -> np.ndarray:
+        """Encode one query with the same normalized model used by the index."""
+        return self._encode([query], show_progress=False)[0]
+
+    def encode_texts(self, texts: list[str]) -> np.ndarray:
+        """Encode category descriptions with the same model used by the index."""
+        if not texts:
+            return np.empty((0, 0), dtype="float32")
+        return self._encode(texts, show_progress=False)
+
+    def load_candidate_vectors(
+        self,
+        dataset_name: str,
+        row_indexes: list[int],
+    ) -> np.ndarray:
+        """Reconstruct candidate vectors from the existing FAISS index."""
+        if not row_indexes:
+            return np.empty((0, 0), dtype="float32")
+
+        if self._uses_full_store(dataset_name, self._max_docs):
+            index = self._full_vector_store(dataset_name).load_index()
+        else:
+            index = self._development_vector_store(
+                dataset_name,
+                self._max_docs,
+            ).load_index()
+
+        vectors = [
+            np.asarray(index.reconstruct(int(row_index)), dtype="float32")
+            for row_index in row_indexes
+        ]
+        return np.vstack(vectors)
+
     def _search_full(
         self,
         query: str,
@@ -103,7 +141,7 @@ class EmbeddingRetriever:
         self.ensure_ready(dataset_name)
         vector_store = self._full_vector_store(dataset_name)
         start = time.perf_counter()
-        query_vector = self._encode([query], show_progress=False)[0]
+        query_vector = self.encode_query(query)
         matches = vector_store.search(query_vector=query_vector, top_k=top_k)
         records = vector_store.load_records([row_index for row_index, _ in matches])
         elapsed_ms = (time.perf_counter() - start) * 1000.0
@@ -128,6 +166,7 @@ class EmbeddingRetriever:
                         "model": self.model_name,
                         "embedding_model": self.embedding_model_name,
                         "storage": "incremental_faiss_full",
+                        "row_index": row_index,
                         "query_time_ms": round(elapsed_ms, 3),
                     },
                 )
@@ -144,7 +183,7 @@ class EmbeddingRetriever:
         vector_store = self._development_vector_store(dataset_name, self._max_docs)
         doc_ids, documents = vector_store.load_metadata()
 
-        query_vector = self._encode([query], show_progress=False)[0]
+        query_vector = self.encode_query(query)
         matches = vector_store.search(query_vector=query_vector, top_k=top_k)
 
         results: list[SearchResult] = []
@@ -161,6 +200,7 @@ class EmbeddingRetriever:
                         "model": self.model_name,
                         "embedding_model": self.embedding_model_name,
                         "storage": "faiss_development",
+                        "row_index": row_index,
                     },
                 )
             )

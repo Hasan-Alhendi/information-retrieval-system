@@ -13,6 +13,7 @@ MODEL_OPTIONS = {
     "BM25": "bm25",
     "TF-IDF": "tfidf",
     "Embedding": "embedding",
+    "Embedding + Guided Categories": "embedding_guided_categories",
     "Hybrid Serial": "hybrid_serial",
     "Hybrid Parallel": "hybrid_parallel",
 }

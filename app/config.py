@@ -17,6 +17,7 @@ SUPPORTED_RETRIEVAL_MODELS = (
     "tfidf",
     "bm25",
     "embedding",
+    "embedding_guided_categories",
     "hybrid_serial",
     "hybrid_parallel",
 )

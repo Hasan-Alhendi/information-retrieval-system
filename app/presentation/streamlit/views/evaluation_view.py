@@ -13,6 +13,7 @@ MODEL_LABELS = {
     "bm25": "BM25",
     "tfidf": "TF-IDF",
     "embedding": "Embedding",
+    "embedding_guided_categories": "Embedding + Guided Categories",
     "hybrid_serial": "Hybrid Serial",
     "hybrid_parallel": "Hybrid Parallel",
 }
@@ -27,7 +28,7 @@ def render_evaluation_page(settings: dict[str, object]) -> None:
         "Models",
         options=list(SUPPORTED_MODELS),
         default=[str(settings["model_name"])],
-        format_func=lambda value: MODEL_LABELS[value],
+        format_func=lambda value: MODEL_LABELS.get(value, value),
     )
     max_queries = st.number_input(
         "Max queries for evaluation",
@@ -64,7 +65,7 @@ def render_evaluation_page(settings: dict[str, object]) -> None:
         for index, model_name in enumerate(model_names, start=1):
             progress.progress(
                 (index - 1) / len(model_names),
-                text=f"Evaluating {MODEL_LABELS[model_name]}...",
+                text=f"Evaluating {MODEL_LABELS.get(model_name, model_name)}...",
             )
             results.append(
                 evaluator.evaluate(
@@ -86,7 +87,7 @@ def render_evaluation_page(settings: dict[str, object]) -> None:
     frame = pd.DataFrame(
         [
             {
-                "Model": MODEL_LABELS[result.model_name],
+                "Model": MODEL_LABELS.get(result.model_name, result.model_name),
                 f"MAP@{settings['top_k']}": result.map_score,
                 f"Recall@{settings['top_k']}": result.recall,
                 "Precision@10": result.precision_at_10,
